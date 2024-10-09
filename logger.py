@@ -6,10 +6,9 @@ import logging
 import inspect
 from typing import Any, Callable, TypeVar, Union
 
-T = TypeVar('T')
+import datetime
 
 
-logging.basicConfig(level=logging.DEBUG)
 
 
 
@@ -21,12 +20,31 @@ logging.basicConfig(level=logging.DEBUG)
 
 # These automatic logs all contain " @autolog " in their printout.
 
+
 ADD_AUTOMATIC_STR_METHOD = True  # Global variable to control automatic __str__ method addition to classes.
 
 # In production, we don't want the logger to crash the program.
 LET_LOGGER_CRASH_PROGRAM = True
 
 ASSERT_TYPES = True  # Global variable to control type assertions
+
+
+
+
+# This is the logger that is used if no logger is passed to the decorator, like @log(my_own_logger).
+# When logging, it is best to pass your logger of that file.
+# # in theory you could also just change DEFAULT_LOGGER after importing. 
+
+logging.basicConfig(level=logging.DEBUG) # means all logs are logges. This it the least severe log level.
+DEFAULT_LOGER = logging.getLogger(__name__)
+
+# To create a log file, create a log handler.
+# An example of this is done below in __main__.
+# Do not forget to .close() the file handler after you are done with it.
+
+
+
+
 
 
 # This logger covers 5 scenarios.
@@ -90,9 +108,7 @@ ASSERT_TYPES = True  # Global variable to control type assertions
 # It also covers the case of passing a logger generating class, here named MyLogger(),
 # but could be anything your project uses - just rename MyLogger in this code.
 
-
-# If no logger is passed, it creates a default logger.
-DEFAULT_LOGER = logging.getLogger(__name__)
+# If no logger is passed, it uses the default logger.
 
 
 
@@ -248,6 +264,27 @@ def log_for_class(cls):
 if __name__ == "__main__":
 
 
+    # Create a file handler
+    current_time = datetime.datetime.now()
+    log_file_name = f"log_{current_time.strftime('%Y-%m-%d_%H-%M-%S')}.log"
+    file_handler = logging.FileHandler(log_file_name)
+    file_handler.setLevel(logging.DEBUG)
+
+    # Create a formatter and set it for the file handler
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+
+    # Add the file handler to the logger
+    DEFAULT_LOGER.addHandler(file_handler)
+
+    # Add a StreamHandler for stdout - if you want to keep the stdout logging
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.DEBUG)  # You can set a different level for stdout
+    stream_handler.setFormatter(formatter)
+    DEFAULT_LOGER.addHandler(stream_handler)
+
+
+
     # Testing logger for class
 
     @log_for_class
@@ -329,6 +366,10 @@ if __name__ == "__main__":
 
 
 
+
+    file_handler.close()
+
+
     # Testing type assertion
     @log
     def sum(a: int, b=10):
@@ -336,3 +377,7 @@ if __name__ == "__main__":
     sum(1.25, 20)
 
     input()
+
+
+
+

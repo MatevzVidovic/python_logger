@@ -1,0 +1,6 @@
+2024-10-10 00:16:48,650 - __main__ - DEBUG -  @autolog Function __init__ called with arguments: self=<__main__.log_for_class.<locals>.WrapperClass object at 0x70bd9cae8340>, x=5, y='Hello'
+2024-10-10 00:16:48,650 - __main__ - DEBUG -  @autolog Function add called with arguments: self=<__main__.log_for_class.<locals>.WrapperClass object at 0x70bd9cae8340>, z=3
+2024-10-10 00:16:48,650 - __main__ - DEBUG -  @autolog Function concat called with arguments: self=<__main__.log_for_class.<locals>.WrapperClass object at 0x70bd9cae8340>, s=' World'
+2024-10-10 00:16:48,651 - __main__ - DEBUG -  @autolog Function sum called with arguments: a=10, b=20
+2024-10-10 00:16:48,651 - __main__ - DEBUG -  @autolog Function sum called with arguments: a=1.25, b=20
+2024-10-10 00:16:48,651 - __main__ - CRITICAL -  @autolog Type mismatch for parameter 'a'. Expected <class 'int'>, got <class 'float'>

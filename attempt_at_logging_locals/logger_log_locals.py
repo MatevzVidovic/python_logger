@@ -13,45 +13,10 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 
-# Logs the function name and its arguments when the function is called.
-# Checks if its type hints are correct. Can crash program if ASSERT_TYPES is True and LET_LOGGER_CRASH_PROGRAM is True.
-# Enables simple logging for classes. Enables an automatic addition of __str__ method to classes.
-# Although simple logging for classes adds the logging for all methods called on it, like __init__ and other things as well,
-# so adding @log to the methods in the class instead is a good idea.
-
-# These automatic logs all contain " @autolog " in their printout.
-
-ADD_AUTOMATIC_STR_METHOD = True  # Global variable to control automatic __str__ method addition to classes.
-
-# In production, we don't want the logger to crash the program.
-LET_LOGGER_CRASH_PROGRAM = True
-
-ASSERT_TYPES = True  # Global variable to control type assertions
-
-
-# This logger covers 5 scenarios.
-
-# 1. No logger is passed to the decorator.
-# Here we create a MyLogger() class.
-
-# 2. A logger class called MyLogger() is passed to the decorator.
-# 3. An actual logger is passed to the decorator.
-# Here we simply use what was passed.
-
-# 4. An actual logger OR a logger class called MyLogger() is passed as an argument to the decorated function.
-# 5. An actual logger OR a logger class called MyLogger() is the classes attribute.
-# Here we use what was passed to the decorated function as a parameter first,
-# and if it wasn't, we look for any such thing in the class's attributes,
-# and if nothing is there, we do the 1. case and create MyLogger().
 
 
 
-
-
-
-# Initial idea:
-"""
-# Za logging decorator bi tako lahko ustvaril decorator, ki pred in po klicu funkcije izpiše njene lokalne spremenljivke (does not work).
+# Za logging decorator bi tako lahko ustvaril decorator, ki pred in po klicu funkcije izpiše njene lokalne spremenljivke.
 # Lahko bi tudi avtomatsko preveril, če so parametri pravilnega tipa glede na type hints. Tako bi, če niso,
 #  lahko naredil critical log, da niso bili. Lahko bi tudi imel glocalno spremenljivko ASSERT_TYPES=True,
 #  in ob njej tudi assertal vse tipe, akr je fajn when developping.
@@ -61,13 +26,15 @@ ASSERT_TYPES = True  # Global variable to control type assertions
 # Ta class decorator bi lahko tudi avtomatsko ustvaril __str__ metodo, ki bi izpisala vrednosti vseh spremenljivk classa. 
 
 
-# Logging local variables of a function does not work.
-# You can only log wrapper() or module.
-# This only makes sense, since in the decorateor, we are never in the function.
-# Another logging mechanism has to be created for that.
-"""
 
 
+# Avtomatski loggi se začnejo z @log.
+
+
+# In production, we don't want the logger to crash the program.
+LET_LOGGER_CRASH_PROGRAM = True
+
+ASSERT_TYPES = True  # Global variable to control type assertions
 
 
 
@@ -97,6 +64,29 @@ DEFAULT_LOGER = logging.getLogger(__name__)
 
 
 
+# This does not work. It logs the local vars of the frame even further back, so of the module running it.
+# The current frame is the function wrapper().
+# It seems there is simply no way to do this without putting code directly in the decorated function.
+
+# # Ne izpisuje lokalnih spremenljivk, ki so metode.
+# LOG_FUNCTION_LOCALS = False
+
+# # Ne izpisuje lokalnih spremenljivk, ki so stringi in se začnejo z __.
+# LOG_STRINGS_STARTING_WITH_DOUBLE_UNDERSCORE = False
+
+# def remove_unwanted_locals(d: dict) -> dict:
+    
+#     returner = {k: v for k, v in d.items()}
+    
+#     if not LOG_FUNCTION_LOCALS:
+#         returner = {k: v for k, v in returner.items()
+#         if not callable(v)}
+
+#     if not LOG_STRINGS_STARTING_WITH_DOUBLE_UNDERSCORE:
+#         returner = {k: v for k, v in returner.items()
+#         if not (isinstance(k, str) and k.startswith('__'))}
+    
+#     return returner
 
 
 
@@ -116,7 +106,20 @@ class MyLogger:
 
 
 
+# This logger covers 5 scenarios.
 
+# 1. No logger is passed to the decorator.
+# Here we create a MyLogger() class.
+
+# 2. A logger class called MyLogger() is passed to the decorator.
+# 3. An actual logger is passed to the decorator.
+# Here we simply use what was passed.
+
+# 4. An actual logger OR a logger class called MyLogger() is passed as an argument to the decorated function.
+# 5. An actual logger OR a logger class called MyLogger() is the classes attribute.
+# Here we use what was passed to the decorated function as a parameter first,
+# and if it wasn't, we look for any such thing in the class's attributes,
+# and if nothing is there, we do the 1. case and create MyLogger().
 
 
 def log(_func=None, *, my_logger: Union[MyLogger, logging.Logger] = None):
@@ -180,44 +183,69 @@ def log(_func=None, *, my_logger: Union[MyLogger, logging.Logger] = None):
                 signature = inspect.signature(func)
                 bound_args = signature.bind(*args, **kwargs)
                 bound_args.apply_defaults()
-
-                # Log function call
-                printable_args = [f"{k}={v!r}" for k, v in bound_args.arguments.items()]
-                logger.debug(f" @autolog Function {func.__name__} called with arguments: {', '.join(printable_args)}")
-
-                # Initial weird way
-                """
-                print(signature)
-                print(args, kwargs)
-                print(bound_args.arguments)
                 
                 # Log function call
                 args_repr = [repr(arg) for arg in args]
                 kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
                 logger.debug(f"Function {func.__name__} called with arguments: {', '.join(args_repr + kwargs_repr)}")
-                """
                 
+                # This does not work. It logs the local vars of the frame even further back, so of the module running it.
+                # The current frame is the function wrapper().
+                # It seems there is simply no way to do this without putting code directly in the decorated function.
+
+                # Log local variables before execution
+                # frame = inspect.currentframe().f_back
+                # local_vars = {k: v for k, v in frame.f_locals.items() if k != 'self'}
+                # local_vars = remove_unwanted_locals(local_vars)
+                # logger.debug(f"Local variables before execution: {local_vars}")
+
 
                 # Type checking
                 for param, arg_value in bound_args.arguments.items():
                     param_type = signature.parameters[param].annotation
+                    print(f"param: {param}, arg_value: {arg_value}, param_type: {param_type}")
                     if param_type != inspect.Parameter.empty and not isinstance(arg_value, param_type):
-                        logger.critical(f" @autolog Type mismatch for parameter '{param}'. Expected {param_type}, got {type(arg_value)}")
+                        logger.critical(f"Type mismatch for parameter '{param}'. Expected {param_type}, got {type(arg_value)}")
                         if ASSERT_TYPES:
                             raise TypeError(f"Type mismatch for parameter {param}. Expected {param_type}, got {type(arg_value)}")
 
 
 
-            except Exception as e:
+            except Exception:
                 if LET_LOGGER_CRASH_PROGRAM:
-                    raise e
+                    raise
 
 
             try:
                 result = func(*args, **kwargs)
+
+                # This does not work. It logs the local vars of the frame even further back, so of the module running it.
+                # The current frame is the function wrapper().
+                # It seems there is simply no way to do this without putting code directly in the decorated function.
+
+                # Log local variables after execution
+
+                # frame = inspect.currentframe() #.f_back
+                
+                # print(f"The name of the caller frame is: {frame.f_code.co_name}")
+                # print(f"The name of the caller frame is: {frame.f_back.f_code.co_name}")
+                # print(f"The name of the caller frame is: {frame.f_back.f_back.f_code.co_name}")
+                # print(f"The name of the caller frame is: {frame.f_back.f_back.f_back.f_code.co_name}")
+                # print(f"The name of the caller frame is: {frame.f_back.f_back.f_back.f_back.f_code.co_name}")
+                # print(f"The name of the caller frame is: {frame.f_back.f_back.f_back.f_back.f_back.f_code.co_name}")
+                # print(f"The name of the caller frame is: {frame.f_back.f_back.f_back.f_back.f_back.f_back.f_code.co_name}")
+                # print(f"The name of the caller frame is: {frame.f_back.f_back.f_back.f_back.f_back.f_back.f_back.f_code.co_name}")
+                # print(f"The name of the caller frame is: {frame.f_back.f_back.f_back.f_back.f_back.f_back.f_back.f_back.f_code.co_name}")
+                # print(f"The name of the caller frame is: {frame.f_back.f_back.f_back.f_back.f_back.f_back.f_back.f_back.f_back.f_code.co_name}")
+            
+                # local_vars = {k: v for k, v in frame.f_locals.items() if k != 'self'}
+                # local_vars = remove_unwanted_locals(local_vars)
+                # logger.debug(f"Local variables after execution: {local_vars}")
+
+
                 return result
             except Exception as e:
-                logger.exception(f" @autolog Exception raised in {func.__name__}. exception: {str(e)}")
+                logger.exception(f"Exception raised in {func.__name__}. exception: {str(e)}")
                 raise e
         return wrapper
 
@@ -226,16 +254,14 @@ def log(_func=None, *, my_logger: Union[MyLogger, logging.Logger] = None):
     else:
         return decorator_log(_func)
 
-
 def log_for_class(cls):
     class WrapperClass(cls):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
         
-        if ADD_AUTOMATIC_STR_METHOD:
-            def __str__(self):
-                attrs = vars(self)
-                return f"{cls.__name__}({', '.join(f'{key}={value}' for key, value in attrs.items())})"
+        def __str__(self):
+            attrs = vars(self)
+            return f"{cls.__name__}({', '.join(f'{key}={value}' for key, value in attrs.items())})"
     
     for name, member in inspect.getmembers(cls):
         if inspect.isfunction(member):

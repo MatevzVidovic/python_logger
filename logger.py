@@ -7,6 +7,7 @@ import inspect
 from typing import Any, Callable, TypeVar, Union
 
 import datetime
+import os
 
 
 
@@ -100,6 +101,8 @@ ADD_CLASS_AUTOLOG = True
 # If ADD_AUTOMATIC_STR_METHOD == True
 # - add a __str__ method to the class, which prints all its attributes.
 ADD_AUTOMATIC_STR_METHOD = True
+# This is important for logging, because when you have an object of such class in your code,
+#  you want it to be logged with the attributes, not just the pointer to the object - that's useless.
 
 
 
@@ -225,9 +228,16 @@ def log_locals(logger=DEFAULT_LOGGER):
 
     # Get local variables from the frame
     local_vars = frame.f_locals
+
+    # Get additional information from the frame
+    full_path = frame.f_code.co_filename
+    filename = os.path.basename(full_path)
+    line_number = frame.f_lineno
+    function_name = frame.f_code.co_name
+    
     
     # Log each local variable
-    logger.debug(f" @local_log Local variables: '{local_vars}'")
+    logger.debug(f" @local_log Filename: {filename} Function: {function_name} Line: {line_number} Local variables: '{local_vars}'")
     
     # Break potential reference cycle 
     del frame

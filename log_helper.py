@@ -20,18 +20,28 @@ import os
 
 # How to use:
 
-# import log_module
+# Simply clone this repository into your own repo.
+# Due to the .gitignore here, this repo will be automatically ignored by git.
+
+# import log_helper
 
 # Create your own logger and create a file handler
 """
 logging.basicConfig(level=logging.DEBUG) # means all logs are logged. This it the least severe log level.
-MY_LOGGER = logging.getLogger(__name__)
+MY_LOGGER = logging.getLogger(__name__) # Here, any string can be passed.
+# getLogger() then returns the same logger if the same string is passed.
+# This can be a terrible bug - you think you created two separate loggers, but they all point to the same thing.
+# Watch out.
 
 # Create a file handler
 current_time = datetime.datetime.now()
 log_file_name = f"log_{current_time.strftime('%S-%M-%H_%Y-%m-%d')}.log"
 file_handler = logging.FileHandler(log_file_name)
 file_handler.setLevel(logging.DEBUG)
+
+# Enables easier use of log_server()
+with open("latest_log_name.txt", "w") as f:
+    f.write(log_file_name)
 
 # Create a formatter and set it for the file handler
 formatter = logging.Formatter('@log %(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -40,11 +50,11 @@ file_handler.setFormatter(formatter)
 # Add the file handler to the logger
 MY_LOGGER.addHandler(file_handler)
 
-# Add a StreamHandler for stdout - if you want to keep the stdout logging
-stream_handler = logging.StreamHandler()
-stream_handler.setLevel(logging.DEBUG)  # You can set a different level for stdout
-stream_handler.setFormatter(formatter)
-MY_LOGGER.addHandler(stream_handler)
+# # Add a StreamHandler for stdout - if you want to keep the stdout logging
+# stream_handler = logging.StreamHandler()
+# stream_handler.setLevel(logging.DEBUG)  # You can set a different level for stdout
+# stream_handler.setFormatter(formatter)
+# MY_LOGGER.addHandler(stream_handler)
 """
 
 
@@ -361,6 +371,7 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None):
                         if isinstance(x, logging.Logger) or isinstance(x, MyLogger)
                     ]
 
+
                     # This tries to see if this is a method in a class that has a logger attribute.
                     if hasattr(first_args, "__dict__"):  # is first argument `self`
                         logger_params = logger_params + [
@@ -512,13 +523,17 @@ if __name__ == "__main__":
 
 
     logging.basicConfig(level=logging.DEBUG) # means all logs are logged. This it the least severe log level.
-    MY_LOGGER = logging.getLogger(__name__)
+    MY_LOGGER = logging.getLogger("whatever_name_you_want")
 
     # Create a file handler
     current_time = datetime.datetime.now()
     log_file_name = f"log_{current_time.strftime('%S-%M-%H_%Y-%m-%d')}.log"
     file_handler = logging.FileHandler(log_file_name)
     file_handler.setLevel(logging.DEBUG)
+
+    # Enables easier use of log_server()
+    with open("latest_log_name.txt", "w") as f:
+        f.write(log_file_name)
 
     # Create a formatter and set it for the file handler
     formatter = logging.Formatter('@log %(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -559,7 +574,7 @@ if __name__ == "__main__":
 
     # Testing logger in a class without log_for_class
 
-    class MyClass:
+    class MyClass_2:
         def __init__(self, x: int, y: str):
             self.x = x
             self.y = y
@@ -572,7 +587,7 @@ if __name__ == "__main__":
         def concat(self, s: str) -> str:
             return self.y + s
     
-    obj = MyClass(5, "Hello")
+    obj = MyClass_2(5, "Hello")
     print(obj.add(3))
     print(obj.concat(" World"))
     print(obj)
@@ -689,7 +704,7 @@ if __name__ == "__main__":
     # Testing logger for class
 
     @log_for_class
-    class MyClass:
+    class MyClass_3:
         def __init__(self, x: int, y: str):
             self.x = x
             self.y = y
@@ -700,7 +715,7 @@ if __name__ == "__main__":
         def concat(self, s: str) -> str:
             return self.y + s
     
-    obj = MyClass(5, "Hello")
+    obj = MyClass_3(5, "Hello")
     print(obj.add(3))
     print(obj.concat(" World"))
     print(obj)

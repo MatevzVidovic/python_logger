@@ -1,0 +1,11 @@
+
+
+
+
+# Ignore this folder when cloned into another repository
+!/
+
+
+# When cloned into another repository, the !/ pattern will be interpreted relative 
+# to the new repository's root, effectively ignoring the cloned folder. 
+# However, in the original repository, the !/ pattern ensures that the folder itself is not ignored.

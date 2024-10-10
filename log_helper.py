@@ -16,6 +16,57 @@ import os
 # !!!!!!!!!!!!! Please read to a line of dashes, such as this one, before using the code !!!!!!!!!!!!! 
 # ----------------------------------------------------------------------------------------------------------------------------
 
+# TL;DR:
+"""
+logging.basicConfig(level=logging.DEBUG) # means all logs are logged. This it the least severe log level.
+MY_LOGGER = logging.getLogger(__name__) # or any string instead of __name__. Mind this: same string, same logger.
+
+
+file_handler_setup(MY_LOGGER, "./python_logger", add_stdout_stream=False)
+# def file_handler_setup(logger, path_to_python_logger_folder, add_stdout_stream: bool = False)
+
+
+
+# Add @log(passed_logger=MY_LOGGER) above functions you want to log.
+@log(passed_logger=MY_LOGGER)
+def foo(a, b, c):
+    pass
+
+# These automatic logs all contain " @autolog " in their printout.
+
+# Add log_locals(MY_LOGGER) above every return.
+# These logs contain " @log_locals " in its printout instead.
+
+
+
+
+# To do this easily in VS code, use regex:
+
+# Find: ^( *)def
+# Replace: $1@log(passed_logger=MY_LOGGER)\n$1def
+
+# and
+
+# Find: ^( *)return
+# Replace: $1log_locals(passed_logger=YOUR_LOGGER)\n$1return
+
+
+
+# To start the viewing in your browser, go into pyton_logger in your terminal.
+# Run log_server.py.
+# In another terminal tab, go into pyton_logger/log_frontend.
+# Run command: npm run dev
+
+# Open your browser to localhost:[whatever your terminal said].
+# E voila! Keep refreshing that page as you go.
+
+Possibly you need to run npm install in log_frontend before npm run dev.
+And maybe do some pip3 install for stuff from log_server.py
+
+"""
+
+
+
 
 
 # How to use:
@@ -28,33 +79,19 @@ import os
 # Create your own logger and create a file handler
 """
 logging.basicConfig(level=logging.DEBUG) # means all logs are logged. This it the least severe log level.
-MY_LOGGER = logging.getLogger(__name__) # Here, any string can be passed.
+MY_LOGGER = logging.getLogger(__name__)
+
+file_handler_setup(MY_LOGGER, "./python_logger", add_stdout_stream=False)
+# def file_handler_setup(logger, path_to_python_logger_folder, add_stdout_stream: bool = False)
+
+# Some useful facts:
+
+MY_LOGGER = logging.getLogger(__name__)
+# Here, any string can be passed.
 # getLogger() then returns the same logger if the same string is passed.
 # This can be a terrible bug - you think you created two separate loggers, but they all point to the same thing.
 # Watch out.
 
-# Create a file handler
-current_time = datetime.datetime.now()
-log_file_name = f"log_{current_time.strftime('%S-%M-%H_%Y-%m-%d')}.log"
-file_handler = logging.FileHandler(log_file_name)
-file_handler.setLevel(logging.DEBUG)
-
-# Enables easier use of log_server()
-with open("latest_log_name.txt", "w") as f:
-    f.write(log_file_name)
-
-# Create a formatter and set it for the file handler
-formatter = logging.Formatter('@log %(asctime)s - %(name)s - %(levelname)s - %(message)s')
-file_handler.setFormatter(formatter)
-
-# Add the file handler to the logger
-MY_LOGGER.addHandler(file_handler)
-
-# # Add a StreamHandler for stdout - if you want to keep the stdout logging
-# stream_handler = logging.StreamHandler()
-# stream_handler.setLevel(logging.DEBUG)  # You can set a different level for stdout
-# stream_handler.setFormatter(formatter)
-# MY_LOGGER.addHandler(stream_handler)
 """
 
 
@@ -158,7 +195,7 @@ ADD_AUTOMATIC_STR_METHOD = True
 # Since we need to add @log(our_logger) before every function, this is tedious.
 # We can instead use Ctrl+F with regex.
 # Find: ^( *)def
-# Replace: $1@log(our_logger)\n$1def
+# Replace: $1@log(passed_logger=YOUR_LOGGER)\n$1def
 # Do the same for log_locals() and return.
 
 # (Explanation:
@@ -221,9 +258,36 @@ signal.signal(signal.SIGINT, sigint_handler)
 
 
 
+def file_handler_setup(logger, path_to_python_logger_folder, add_stdout_stream: bool = False):
+
+    # Create a file handler
+    current_time = datetime.datetime.now()
+    log_file_name = f"{path_to_python_logger_folder}/log_{current_time.strftime('%S-%M-%H_%Y-%m-%d')}.log"
+    file_handler = logging.FileHandler(log_file_name)
+    file_handler.setLevel(logging.DEBUG)
+
+    # Enables easier use of log_server()
+    with open(path_to_python_logger_folder + "/latest_log_name.txt", "w") as f:
+        f.write(log_file_name)
+
+    # Create a formatter and set it for the file handler
+    formatter = logging.Formatter('@log %(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+
+    # Add the file handler to the logger
+    logger.addHandler(file_handler)
+
+    if add_stdout_stream:
+        # Add a StreamHandler for stdout - if you want to keep the stdout logging
+        stream_handler = logging.StreamHandler()
+        stream_handler.setLevel(logging.DEBUG)  # You can set a different level for stdout
+        stream_handler.setFormatter(formatter)
+        logger.addHandler(stream_handler)
 
 
-def log_locals(logger=DEFAULT_LOGGER):
+
+
+def log_locals(passed_logger=DEFAULT_LOGGER):
     """
     Log all local variables in the current frame.
     
@@ -254,7 +318,7 @@ def log_locals(logger=DEFAULT_LOGGER):
                         Local variables: """
     logging_string += " \n " + ", \n".join([f"{k}={v!r}" for k, v in local_vars.items()])
     # Log each local variable
-    logger.debug(logging_string)
+    passed_logger.debug(logging_string)
     
     # Break potential reference cycle 
     del frame
@@ -525,28 +589,30 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG) # means all logs are logged. This it the least severe log level.
     MY_LOGGER = logging.getLogger("whatever_name_you_want")
 
-    # Create a file handler
-    current_time = datetime.datetime.now()
-    log_file_name = f"log_{current_time.strftime('%S-%M-%H_%Y-%m-%d')}.log"
-    file_handler = logging.FileHandler(log_file_name)
-    file_handler.setLevel(logging.DEBUG)
+    file_handler_setup(MY_LOGGER, ".", add_stdout_stream=True)
 
-    # Enables easier use of log_server()
-    with open("latest_log_name.txt", "w") as f:
-        f.write(log_file_name)
+    # # Create a file handler
+    # current_time = datetime.datetime.now()
+    # log_file_name = f"log_{current_time.strftime('%S-%M-%H_%Y-%m-%d')}.log"
+    # file_handler = logging.FileHandler(log_file_name)
+    # file_handler.setLevel(logging.DEBUG)
 
-    # Create a formatter and set it for the file handler
-    formatter = logging.Formatter('@log %(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    file_handler.setFormatter(formatter)
+    # # Enables easier use of log_server()
+    # with open("latest_log_name.txt", "w") as f:
+    #     f.write(log_file_name)
 
-    # Add the file handler to the logger
-    MY_LOGGER.addHandler(file_handler)
+    # # Create a formatter and set it for the file handler
+    # formatter = logging.Formatter('@log %(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    # file_handler.setFormatter(formatter)
 
-    # Add a StreamHandler for stdout - if you want to keep the stdout logging
-    stream_handler = logging.StreamHandler()
-    stream_handler.setLevel(logging.DEBUG)  # You can set a different level for stdout
-    stream_handler.setFormatter(formatter)
-    MY_LOGGER.addHandler(stream_handler)
+    # # Add the file handler to the logger
+    # MY_LOGGER.addHandler(file_handler)
+
+    # # Add a StreamHandler for stdout - if you want to keep the stdout logging
+    # stream_handler = logging.StreamHandler()
+    # stream_handler.setLevel(logging.DEBUG)  # You can set a different level for stdout
+    # stream_handler.setFormatter(formatter)
+    # MY_LOGGER.addHandler(stream_handler)
 
 
 

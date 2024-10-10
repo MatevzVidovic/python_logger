@@ -29,12 +29,12 @@ MY_LOGGER = logging.getLogger(__name__)
 
 # Create a file handler
 current_time = datetime.datetime.now()
-log_file_name = f"log_{current_time.strftime('%Y-%m-%d_%H-%M-%S')}.log"
+log_file_name = f"log_{current_time.strftime('%S-%M-%H_%Y-%m-%d')}.log"
 file_handler = logging.FileHandler(log_file_name)
 file_handler.setLevel(logging.DEBUG)
 
 # Create a formatter and set it for the file handler
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter('@log %(asctime)s - %(name)s - %(levelname)s - %(message)s')
 file_handler.setFormatter(formatter)
 
 # Add the file handler to the logger
@@ -46,6 +46,7 @@ stream_handler.setLevel(logging.DEBUG)  # You can set a different level for stdo
 stream_handler.setFormatter(formatter)
 MY_LOGGER.addHandler(stream_handler)
 """
+
 
 
 
@@ -236,8 +237,14 @@ def log_locals(logger=DEFAULT_LOGGER):
     function_name = frame.f_code.co_name
     
     
+    logging_string = f""" @local_log 
+                  Filename: {filename}
+                    Function {function_name} 
+                      Line: {line_number} 
+                        Local variables: """
+    logging_string += " \n " + ", \n".join([f"{k}={v!r}" for k, v in local_vars.items()])
     # Log each local variable
-    logger.debug(f" @local_log Filename: {filename} Function: {function_name} Line: {line_number} Local variables: '{local_vars}'")
+    logger.debug(logging_string)
     
     # Break potential reference cycle 
     del frame
@@ -394,7 +401,10 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None):
 
                 # Log function call
                 printable_args = [f"{k}={v!r}" for k, v in bound_args.arguments.items()]
-                logger.debug(f" @autolog Function {func.__name__} called with arguments: {', '.join(printable_args)}")
+                logging_string = f""" @autolog 
+                              Function {func.__name__} called with arguments: """
+                logging_string += " \n " + ", \n".join(printable_args)
+                logger.debug(logging_string)
 
                 # Initial weird way
                 """
@@ -413,7 +423,9 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None):
                 for param, arg_value in bound_args.arguments.items():
                     param_type = signature.parameters[param].annotation
                     if param_type != inspect.Parameter.empty and not isinstance(arg_value, param_type):
-                        logger.critical(f" @autolog Type mismatch for parameter '{param}'. Expected {param_type}, got {type(arg_value)}")
+                        logger.critical(f""" @autolog 
+                                         Type mismatch for parameter '{param}'. 
+                                           Expected {param_type}, got {type(arg_value)}""")
                         if ASSERT_TYPES:
                             assert param_type == type(arg_value), f"Type mismatch for parameter {param}. Expected {param_type}, got {type(arg_value)}"
                             # raise TypeError(f"Type mismatch for parameter {param}. Expected {param_type}, got {type(arg_value)}")
@@ -429,7 +441,9 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None):
                 result = func(*args, **kwargs)
                 return result
             except Exception as e:
-                logger.exception(f" @autolog Exception raised in {func.__name__}. exception: {str(e)}")
+                logger.exception(f""" @autolog 
+                                 Exception raised in {func.__name__}. 
+                                    exception: {str(e)}""")
                 raise e
         return wrapper
 
@@ -502,12 +516,12 @@ if __name__ == "__main__":
 
     # Create a file handler
     current_time = datetime.datetime.now()
-    log_file_name = f"log_{current_time.strftime('%Y-%m-%d_%H-%M-%S')}.log"
+    log_file_name = f"log_{current_time.strftime('%S-%M-%H_%Y-%m-%d')}.log"
     file_handler = logging.FileHandler(log_file_name)
     file_handler.setLevel(logging.DEBUG)
 
     # Create a formatter and set it for the file handler
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter('@log %(asctime)s - %(name)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(formatter)
 
     # Add the file handler to the logger
@@ -658,7 +672,7 @@ if __name__ == "__main__":
     file_handler.setLevel(logging.DEBUG)
 
     # Create a formatter and set it for the file handler
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter('@log %(asctime)s - %(name)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(formatter)
 
     # Add the file handler to the logger

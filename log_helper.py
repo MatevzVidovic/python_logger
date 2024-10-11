@@ -22,9 +22,8 @@ logging.basicConfig(level=logging.DEBUG) # means all logs are logged. This it th
 MY_LOGGER = logging.getLogger(__name__) # or any string instead of __name__. Mind this: same string, same logger.
 
 
-file_handler_setup(MY_LOGGER, "./python_logger", add_stdout_stream=False)
+handlers = file_handler_setup(MY_LOGGER, "./python_logger", add_stdout_stream=False)
 # def file_handler_setup(logger, path_to_python_logger_folder, add_stdout_stream: bool = False)
-
 
 
 # Add @log(passed_logger=MY_LOGGER) above functions you want to log.
@@ -71,8 +70,12 @@ And maybe do some pip3 install for stuff from log_server.py
 
 # How to use:
 
-# Simply clone this repository into your own repo.
-# Due to the .gitignore here, this repo will be automatically ignored by git.
+# Add this repo as a submodule
+"""
+git submodule add https://github.com/MatevzVidovic/python_logger.git ./python_logger
+git commit -m "Add python_logger as a submodule"
+"""
+
 
 # import log_helper
 
@@ -81,8 +84,13 @@ And maybe do some pip3 install for stuff from log_server.py
 logging.basicConfig(level=logging.DEBUG) # means all logs are logged. This it the least severe log level.
 MY_LOGGER = logging.getLogger(__name__)
 
-file_handler_setup(MY_LOGGER, "./python_logger", add_stdout_stream=False)
+handlers = file_handler_setup(MY_LOGGER, "./python_logger", add_stdout_stream=False)
 # def file_handler_setup(logger, path_to_python_logger_folder, add_stdout_stream: bool = False)
+
+# Not necessary, just recommended:
+# When your program finishes, use handlers.close()
+#  to close the file handler and possible stream handler.
+
 
 # Some useful facts:
 
@@ -256,7 +264,16 @@ def sigint_handler(signum, frame):
 signal.signal(signal.SIGINT, sigint_handler)
 # It performs an orderly shutdown of the logging system by flushing and closing all handlers, not loggers per se.
 
+class FileAndStreamHandlers:
+    def __init__(self, handlers_list=[]):
+        self.handlers = handlers_list
 
+    def add_handler(self, handler):
+        self.handlers.append(handler)
+
+    def close_all_handlers(self):
+        for handler in self.handlers:
+            handler.close()
 
 def file_handler_setup(logger, path_to_python_logger_folder, add_stdout_stream: bool = False):
 
@@ -283,6 +300,9 @@ def file_handler_setup(logger, path_to_python_logger_folder, add_stdout_stream: 
         stream_handler.setLevel(logging.DEBUG)  # You can set a different level for stdout
         stream_handler.setFormatter(formatter)
         logger.addHandler(stream_handler)
+    
+    return FileAndStreamHandlers([file_handler, stream_handler])
+
 
 
 
@@ -589,7 +609,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG) # means all logs are logged. This it the least severe log level.
     MY_LOGGER = logging.getLogger("whatever_name_you_want")
 
-    file_handler_setup(MY_LOGGER, ".", add_stdout_stream=True)
+    handlers = file_handler_setup(MY_LOGGER, ".", add_stdout_stream=True)
 
     # # Create a file handler
     # current_time = datetime.datetime.now()
@@ -703,7 +723,7 @@ if __name__ == "__main__":
     inp = input("Enter 'c' to close file_handler. Anything else to continue.")
 
     if inp == "c":
-        file_handler.close()
+        handlers.close()
 
 
     inp = input("Enter 'c' to crash due to type mismatch. Anything else to continue.")

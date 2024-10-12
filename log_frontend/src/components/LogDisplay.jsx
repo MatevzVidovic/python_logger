@@ -4,10 +4,10 @@ import React, { useState, useEffect } from 'react';
 const LogDisplay = () => {
   const [logs, setLogs] = useState([]);
   const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(1000); // Number of logs per page
   const [error, setError] = useState(null);
-  const perPage = 10; // Number of logs per page
 
-  
+
   const fetchLogs = () => {
     fetch(`http://localhost:5000/logs?page=${page}&per_page=${perPage}`)
       .then(response => response.json())
@@ -52,13 +52,43 @@ const LogDisplay = () => {
     setPage(prevPage => Math.max(prevPage - 1, 1));
   };
 
+  const handlePageNumberChange = (event) => {
+    setPage(Number(event.target.value));
+  };
+
+  const handlePerPageChange = (event) => {
+    setPerPage(Number(event.target.value));
+  };
+
   if (error) {
     return <div>Error: {error.message}</div>;
   }
 
   return (
     <div className="log-container">
+      <div>
+        <label>Go to Page:</label>
+        <input
+          type="number"
+          value={page}
+          onChange={handlePageNumberChange}
+          min="1"
+        />
+      </div>
+      <div>
+        <label>Logs Per Page:</label>
+        <input
+          type="number"
+          value={perPage}
+          onChange={handlePerPageChange}
+          min="1"
+        />
+      </div>
       <button onClick={fetchLogs}>Refresh Logs</button>
+      <div className="pagination-controls">
+        <button onClick={handlePreviousPage} disabled={page === 1}>Previous</button>
+        <button onClick={handleNextPage}>Next</button>
+      </div>
       {logs.map(([lineText, logType, functionNumber], index) => (
         <div
           key={index}

@@ -28,8 +28,8 @@ CORS(app)
 
 LOG_FILE_PATH = None
 PARSED_LINES = []
-PREVIOUS_REQUIRED_CONTENT = ""
-REQUIRED_CONTENT = ""
+PREVIOUS_REQUIRED_REGEXS = []
+REQUIRED_REGEXS = []
 CHECK_LATEST_LOG_PATH = False
 
 def parse_log_file():
@@ -74,9 +74,26 @@ def parse_log_file():
 
     # remove all lines that do not contain the required content
     # line[0] is the text of the parsed line
-    if REQUIRED_CONTENT != "":
-        PARSED_LINES = [line for line in PARSED_LINES if REQUIRED_CONTENT in line[0]]
-    
+    new_PARSED_LINES = []
+    if REQUIRED_REGEXS != []:
+        for line in PARSED_LINES:
+            is_okay = True
+            for regex, contain in REQUIRED_REGEXS:
+                if contain:
+                    if not re.search(regex, line[0]):
+                        is_okay = False
+                        break
+                else:
+                    if re.search(regex, line[0]):
+                        is_okay = False
+                        break
+            
+            if is_okay:
+                new_PARSED_LINES.append(line)
+            
+            
+        PARSED_LINES = new_PARSED_LINES
+
     return
 
 
@@ -94,23 +111,35 @@ def get_logs():
         return jsonify({"error": "No log file specified"}), 400
 
 
-@app.route('/required_content', methods=['POST'])
-def update_required_content():
-    global REQUIRED_CONTENT
-    data = request.json
-    if 'content' in data:
-        REQUIRED_CONTENT = data['content']
-        return jsonify({"message": "REQUIRED_CONTENT updated successfully", "REQUIRED_CONTENT": REQUIRED_CONTENT}), 200
+@app.route('/required_regexs', methods=['POST'])
+def update_required_regexs():
+    global REQUIRED_REGEXS
+
+    # Check if the request contains JSON data
+    if request.is_json:
+        # Extract the JSON data
+        data = request.get_json()
+        regexs = data.get('regexs', [])
+
+        new_required_regexs = []
+        for regex in regexs:
+            new_required_regexs.append((regex["regex"], regex["contain"]))
+        
+        REQUIRED_REGEXS = new_required_regexs
+        
+        # Return a success response
+        return jsonify({"message": "Contents received successfully", "regexs": REQUIRED_REGEXS}), 200
     else:
-        return jsonify({"error": "No content provided"}), 400
+        # Return an error response if the content type is not JSON
+        return jsonify({"error": "Request must be JSON"}), 400
 
 
 
 
-def check_latest_log_and_required_content():
+def check_latest_log_and_required_regexs():
     global LOG_FILE_PATH
-    global PREVIOUS_REQUIRED_CONTENT
-    global REQUIRED_CONTENT
+    global PREVIOUS_REQUIRED_REGEXS
+    global REQUIRED_REGEXS
     
     logs_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
     latest_log_path = os.path.join(logs_folder, "latest_log_name.txt")
@@ -133,9 +162,9 @@ def check_latest_log_and_required_content():
                 print("Warning: No 'latest_log_name.txt' file found.")
 
 
-        if PREVIOUS_REQUIRED_CONTENT != REQUIRED_CONTENT:
-            PREVIOUS_REQUIRED_CONTENT = REQUIRED_CONTENT
-            print(f"New required content: {REQUIRED_CONTENT}")
+        if PREVIOUS_REQUIRED_REGEXS != REQUIRED_REGEXS:
+            PREVIOUS_REQUIRED_REGEXS = REQUIRED_REGEXS
+            print(f"New required content: {REQUIRED_REGEXS}")
             do_parse = True
         
         if do_parse:
@@ -155,7 +184,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Start the background thread to check for updates
-    Thread(target=check_latest_log_and_required_content).start()
+    Thread(target=check_latest_log_and_required_regexs).start()
 
     logs_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
 

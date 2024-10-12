@@ -2,18 +2,35 @@ import React, { useState } from 'react';
 
 const LogFilter = ({ refreshLogDisplay }) => {
   const [inputValue, setInputValue] = useState('');
+  const [isActive, setIsActive] = useState(true);
+  const [regexList, setRegexList] = useState([]);
 
   const handleInputChange = (event) => {
     setInputValue(event.target.value);
   };
 
-  const sendRequest = (content) => {
-    fetch('http://localhost:5000/required_content', {
+  const toggleActiveState = () => {
+    setIsActive(!isActive);
+  };
+
+  const addRegex = () => {
+    if (inputValue.trim()) {
+      setRegexList([...regexList, { regex: inputValue.trim(), contain: isActive }]);
+      setInputValue('');
+    }
+  };
+
+  const removeRegex = (index) => {
+    setRegexList(regexList.filter((_, i) => i !== index));
+  };
+
+  const sendRequest = (regexs) => {
+    fetch('http://localhost:5000/required_regexs', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ content: content }),
+      body: JSON.stringify({ regexs }),
     })
       .then(response => response.json())
       .then(data => {
@@ -24,12 +41,8 @@ const LogFilter = ({ refreshLogDisplay }) => {
       });
   };
 
-  const handleSendContent = () => {
-    sendRequest(inputValue);
-  };
-
-  const handleNullifyContent = () => {
-    sendRequest('');
+  const handleSendRegex = () => {
+    sendRequest(regexList);
   };
 
 
@@ -39,10 +52,21 @@ const LogFilter = ({ refreshLogDisplay }) => {
         type="text"
         value={inputValue}
         onChange={handleInputChange}
-        placeholder="Required text contents"
+        placeholder="Enter regex pattern"
       />
-      <button onClick={handleSendContent}>Send Content</button>
-      <button onClick={handleNullifyContent}>Nullify Content Requirements</button>
+      <button onClick={toggleActiveState}>
+        {isActive ? 'contain' : 'not-contain'}
+      </button>
+      <button onClick={addRegex}>Add Regex</button>
+      <button onClick={handleSendRegex}>Send Current Regex</button>
+      <div>
+        {regexList.map((item, index) => (
+          <div key={index} style={{ display: 'flex', alignItems: 'center' }}>
+            <span>{item.regex} - {item.contain ? 'contain' : 'not-contain'}</span>
+            <button onClick={() => removeRegex(index)}>×</button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };

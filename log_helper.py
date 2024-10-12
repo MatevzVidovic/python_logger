@@ -18,11 +18,16 @@ import os
 
 # TL;DR:
 """
-logging.basicConfig(level=logging.DEBUG) # means all logs are logged. This it the least severe log level.
-MY_LOGGER = logging.getLogger(__name__) # or any string instead of __name__. Mind this: same string, same logger.
+
+import logging
+import python_logger.log_helper as py_log
+
+MY_LOGGER = logging.getLogger("prototip") # or any string. Mind this: same string, same logger.
+MY_LOGGER.setLevel(logging.DEBUG)
 
 
-handlers = file_handler_setup(MY_LOGGER, "./python_logger", add_stdout_stream=False)
+python_logger_path = os.path.join(os.path.dirname(__file__), 'python_logger')
+handlers = py_log.file_handler_setup(MY_LOGGER, python_logger_path, add_stdout_stream=False)
 # def file_handler_setup(logger, path_to_python_logger_folder, add_stdout_stream: bool = False)
 
 
@@ -41,13 +46,14 @@ def foo(a, b, c):
 
 # To do this easily in VS code, use regex:
 
+^(?!.*@log\n)( *)def
 # Find: ^( *)def
-# Replace: $1@log(passed_logger=MY_LOGGER)\n$1def
+# Replace: $1@py_log.log(passed_logger=MY_LOGGER)\n$1def
 
 # and
 
 # Find: ^( *)return
-# Replace: $1log_locals(passed_logger=YOUR_LOGGER)\n$1return
+# Replace: $1log_locals(passed_logger=MY_LOGGER)\n$1return
 
 
 
@@ -81,8 +87,8 @@ git commit -m "Add python_logger as a submodule"
 
 # Create your own logger and create a file handler
 """
-logging.basicConfig(level=logging.DEBUG) # means all logs are logged. This it the least severe log level.
 MY_LOGGER = logging.getLogger(__name__)
+MY_LOGGER.setLevel(logging.DEBUG)
 
 handlers = file_handler_setup(MY_LOGGER, "./python_logger", add_stdout_stream=False)
 # def file_handler_setup(logger, path_to_python_logger_folder, add_stdout_stream: bool = False)
@@ -236,8 +242,12 @@ ADD_AUTOMATIC_STR_METHOD = True
 # When logging, it is best to pass your logger of that file.
 # # in theory you could also just change DEFAULT_LOGGER after importing. 
 
-logging.basicConfig(level=logging.DEBUG) # means all logs are logges. This it the least severe log level.
+# This sets the behaviour for the root logger. We don't want that, because then matplotlib and stuff start throwing us
+# debug logs into stderr.
+# logging.basicConfig(level=logging.DEBUG) # means all logs are logged. This it the least severe log level.
+
 DEFAULT_LOGGER = logging.getLogger(__name__)
+DEFAULT_LOGGER.setLevel(logging.DEBUG)
 
 # To create a log file, create a log handler.
 # An example of this is done below in __main__.
@@ -277,14 +287,19 @@ class FileAndStreamHandlers:
 
 def file_handler_setup(logger, path_to_python_logger_folder, add_stdout_stream: bool = False):
 
+
+    os.makedirs(os.path.join(path_to_python_logger_folder, "logs"), exist_ok=True)
+    logs_folder = os.path.join(path_to_python_logger_folder, "logs")
+
     # Create a file handler
     current_time = datetime.datetime.now()
-    log_file_name = f"{path_to_python_logger_folder}/log_{current_time.strftime('%S-%M-%H_%Y-%m-%d')}.log"
-    file_handler = logging.FileHandler(log_file_name)
+    log_file_name = f"log_{current_time.strftime('%S-%M-%H_%Y-%m-%d')}.log"
+    file_handler = logging.FileHandler(os.path.join(logs_folder, log_file_name))
     file_handler.setLevel(logging.DEBUG)
 
     # Enables easier use of log_server()
-    with open(path_to_python_logger_folder + "/latest_log_name.txt", "w") as f:
+    
+    with open(os.path.join(logs_folder, "latest_log_name.txt"), "w") as f:
         f.write(log_file_name)
 
     # Create a formatter and set it for the file handler
@@ -294,9 +309,9 @@ def file_handler_setup(logger, path_to_python_logger_folder, add_stdout_stream: 
     # Add the file handler to the logger
     logger.addHandler(file_handler)
 
+    stream_handler = logging.StreamHandler()
     if add_stdout_stream:
         # Add a StreamHandler for stdout - if you want to keep the stdout logging
-        stream_handler = logging.StreamHandler()
         stream_handler.setLevel(logging.DEBUG)  # You can set a different level for stdout
         stream_handler.setFormatter(formatter)
         logger.addHandler(stream_handler)
@@ -606,8 +621,8 @@ if __name__ == "__main__":
 
 
 
-    logging.basicConfig(level=logging.DEBUG) # means all logs are logged. This it the least severe log level.
     MY_LOGGER = logging.getLogger("whatever_name_you_want")
+    MY_LOGGER.setLevel(logging.DEBUG)
 
     handlers = file_handler_setup(MY_LOGGER, ".", add_stdout_stream=True)
 

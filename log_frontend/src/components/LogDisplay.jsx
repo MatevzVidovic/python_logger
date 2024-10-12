@@ -3,12 +3,28 @@ import React, { useState, useEffect } from 'react';
 
 const LogDisplay = () => {
   const [logs, setLogs] = useState([]);
+  const [page, setPage] = useState(1);
+  const [error, setError] = useState(null);
+  const perPage = 10; // Number of logs per page
+
+  
+  const fetchLogs = () => {
+    fetch(`http://localhost:5000/logs?page=${page}&per_page=${perPage}`)
+      .then(response => response.json())
+      .then(
+        (data) => {
+          setLogs(data);
+        }
+      )
+      .catch((error) => {
+        console.error('Error fetching logs:', error);
+        setError(error);
+      });
+  };
 
   useEffect(() => {
-    fetch('http://localhost:5000/logs')
-      .then(response => response.json())
-      .then(data => setLogs(data));
-  }, []);
+    fetchLogs();
+  }, [page]);
 
   const getColorForFunctionNumber = (number) => {
     // Generate a color based on the function number
@@ -28,8 +44,21 @@ const LogDisplay = () => {
     }
   };
 
+  const handleNextPage = () => {
+    setPage(prevPage => prevPage + 1);
+  };
+
+  const handlePreviousPage = () => {
+    setPage(prevPage => Math.max(prevPage - 1, 1));
+  };
+
+  if (error) {
+    return <div>Error: {error.message}</div>;
+  }
+
   return (
     <div className="log-container">
+      <button onClick={fetchLogs}>Refresh Logs</button>
       {logs.map(([lineText, logType, functionNumber], index) => (
         <div
           key={index}
@@ -44,6 +73,10 @@ const LogDisplay = () => {
           {lineText}
         </div>
       ))}
+      <div className="pagination-controls">
+        <button onClick={handlePreviousPage} disabled={page === 1}>Previous</button>
+        <button onClick={handleNextPage}>Next</button>
+      </div>
     </div>
   );
 };

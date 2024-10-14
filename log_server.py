@@ -208,6 +208,8 @@ if __name__ == '__main__':
                 parse_log_file()
         else:
             print("Warning: No 'latest_log_name.txt' file found.")
+    
+    print("Now showing log file: ", LOG_FILE_PATH)
  
             
     

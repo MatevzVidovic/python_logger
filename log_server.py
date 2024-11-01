@@ -210,7 +210,9 @@ if __name__ == '__main__':
             print("Warning: No 'latest_log_name.txt' file found.")
     
     print("Now showing log file: ", LOG_FILE_PATH)
- 
+    
+
+    # testing comm
             
     
     # This blocks execution.

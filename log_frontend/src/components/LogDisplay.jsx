@@ -1,10 +1,12 @@
 // src/components/LogDisplay.js
 import React, { useState, useEffect } from 'react';
+import SingleLog from './SingleLog';
 
 const LogDisplay = () => {
   const [logs, setLogs] = useState([]);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(1000); // Number of logs per page
+  const [cutoffLength, setCutoffLength] = useState(100);
   const [error, setError] = useState(null);
 
 
@@ -26,23 +28,6 @@ const LogDisplay = () => {
     fetchLogs();
   }, [page]);
 
-  const getColorForFunctionNumber = (number) => {
-    // Generate a color based on the function number
-    // This is a simple hash function, you can replace it with a more sophisticated one
-    const hue = Math.abs(number * 31) % 360;
-    return `hsl(${hue}, 70%, 30%)`;
-  };
-
-  const getColorForLogType = (type) => {
-    switch (type) {
-      case '@autolog':
-        return 'rgb(255, 165, 0)'; // Orange
-      case '@local_log':
-        return 'rgb(75, 192, 192)'; // Light Blue
-      default:
-        return 'rgb(220, 53, 69)'; // Red
-    }
-  };
 
   const handleNextPage = () => {
     setPage(prevPage => prevPage + 1);
@@ -60,12 +45,26 @@ const LogDisplay = () => {
     setPerPage(Number(event.target.value));
   };
 
+  const handleCutoffLengthChange = (event) => {
+    setCutoffLength(Number(event.target.value));
+  };
+
+
   if (error) {
     return <div>Error: {error.message}</div>;
   }
 
   return (
     <div className="log-container">
+      <div>
+        <label>Set new cutoff length (length of line where the line stops unless you click on it):</label>
+        <input
+          type="number"
+          value={cutoffLength}
+          onChange={handleCutoffLengthChange}
+          min="1"
+        />
+      </div>
       <div>
         <label>Go to Page:</label>
         <input
@@ -90,18 +89,7 @@ const LogDisplay = () => {
         <button onClick={handleNextPage}>Next</button>
       </div>
       {logs.map(([lineText, logType, functionNumber], index) => (
-        <div
-          key={index}
-          style={{
-            backgroundColor: getColorForFunctionNumber(functionNumber),
-            borderLeft: `50px solid ${getColorForLogType(logType)}`,
-            padding: '10px',
-            margin: '5px 0',
-            whiteSpace: 'pre-wrap',
-          }}
-        >
-          {lineText}
-        </div>
+        SingleLog(lineText, logType, functionNumber, index, cutoffLength)
       ))}
       <div className="pagination-controls">
         <button onClick={handlePreviousPage} disabled={page === 1}>Previous</button>

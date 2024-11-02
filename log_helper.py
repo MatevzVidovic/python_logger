@@ -18,27 +18,77 @@ import os
 
 # TL;DR:
 """
+Add this repo as a submodule:
+git submodule add https://github.com/MatevzVidovic/python_logger.git
+git commit -m "Add python_logger as a submodule"
 
+When cloning your repo, use:
+git clone --recurse-submodules [URL]
+This will mean the submodule (python_logger) is cloned as well.
+
+To view the latest log file that has been created do:
+cd python_logger
+python3 log_server.py
+Make new terminal tab
+cd python_logger/log_frontend
+npm run dev
+And open the localhost that is shown in the terminal in your browser.
+
+You might need to pip3 install flask and flask_cors.
+For the frontend, you might need to install node and npm.
+Then you might need to install vite (i think with npm or sth).
+And then your node version might be too old or something, so you need to update nvm or sth,
+idk, I just coppied what chatGPT gave when I gave it the error message and it worked.
+
+When doing git add ., your submodule is never included.
+If you want to change the code in the submodule, you go to the submodule folder in the terminal,
+change the code, and then commit and push from there. This will commit to python_logger repo.
+And then the submodule commit that the main repo uses
+is automatically changed in the main repo. So maybe go to the main repo folder and 
+commit that before making new changes in the main repo. It sounds complicated but you will get it when you do it.
+
+
+
+
+
+In your main file, above all imports at the top of the file, add this code:
+(above all imports so that the logger handler is created before 
+any code from importing your other files is run. And so all the loggings 
+are actually written to the output file.)
+{
+import os
 import logging
 import python_logger.log_helper as py_log
 
 MY_LOGGER = logging.getLogger("prototip") # or any string. Mind this: same string, same logger.
 MY_LOGGER.setLevel(logging.DEBUG)
 
-
 python_logger_path = os.path.join(os.path.dirname(__file__), 'python_logger')
 handlers = py_log.file_handler_setup(MY_LOGGER, python_logger_path, add_stdout_stream=False)
 # def file_handler_setup(logger, path_to_python_logger_folder, add_stdout_stream: bool = False)
+}
+
+In all the other files you are importing, only add this code at the top:
+(Simply not adding the file handler again - otherwise each log MY_LOGGER makes would 
+be duplicated as many times as you instantiated another handler)
+{
+import logging
+import python_logger.log_helper as py_log
+
+MY_LOGGER = logging.getLogger("prototip") # or any string. Mind this: same string, same logger.
+MY_LOGGER.setLevel(logging.DEBUG)
+}
 
 
-# Add @log(passed_logger=MY_LOGGER) above functions you want to log.
-@log(passed_logger=MY_LOGGER)
+
+# Add @py_log.log(passed_logger=MY_LOGGER) above functions you want to log.
+@py_log.log(passed_logger=MY_LOGGER)
 def foo(a, b, c):
     pass
 
 # These automatic logs all contain " @autolog " in their printout.
 
-# Add log_locals(MY_LOGGER) above every return.
+# Add py_log.log_locals(MY_LOGGER) above every return.
 # These logs contain " @log_locals " in its printout instead.
 
 
@@ -74,11 +124,19 @@ And maybe do some pip3 install for stuff from log_server.py
 
 
 
+
+
+
+
+
+
+
+
 # How to use:
 
 # Add this repo as a submodule
 """
-git submodule add https://github.com/MatevzVidovic/python_logger.git ./python_logger
+git submodule add https://github.com/MatevzVidovic/python_logger.git
 git commit -m "Add python_logger as a submodule"
 """
 
@@ -107,6 +165,7 @@ MY_LOGGER = logging.getLogger(__name__)
 # Watch out.
 
 """
+
 
 
 
@@ -322,20 +381,31 @@ def file_handler_setup(logger, path_to_python_logger_folder, add_stdout_stream: 
 
 
 
-def log_locals(passed_logger=DEFAULT_LOGGER):
+def get_frame_up_the_stack(num_back):
     """
-    Log all local variables in the current frame.
+    :param num_back: The number of frames to go back.
+    0 is the frame of get_func_frame_info_dict.
+    1 is the frame of the logging function that called get_func_frame_info_dict.
+    2 would then usually be the first sensible option.
+    """
+
+    frame = inspect.currentframe()
+    for _ in range(num_back):
+        frame = frame.f_back
     
-    :param logger: The logger to use (defaults to DEFAULT_LOGGER)
+    return frame
+
+
+def get_func_frame_info_dict(frame):
     """
-    # Get the current frame (one level up from this function)
-    frame = inspect.currentframe().f_back
+    Get a dictionary where:
+    "filename",
+    "line_number",
+    "function_name"
+    "local_vars" : dict of local variables
+    """
 
-    # This would also work. It's faster, but lower level.
-    # And if I use inspect elsewhere, I'll use it here too.
-    # frame = sys._getframe(1)
-
-
+    
     # Get local variables from the frame
     local_vars = frame.f_locals
 
@@ -344,19 +414,112 @@ def log_locals(passed_logger=DEFAULT_LOGGER):
     filename = os.path.basename(full_path)
     line_number = frame.f_lineno
     function_name = frame.f_code.co_name
+
+    returning_dict = {
+        "filename": filename,
+        "line_number": line_number,
+        "function_name": function_name,
+        "local_vars": local_vars
+    }
     
     
-    logging_string = f""" @local_log 
-                  Filename: {filename}
+    return returning_dict
+
+def info_dict_to_string(info_dict, have_local_vars=True):
+
+    filename = info_dict["filename"]
+    line_number = info_dict["line_number"]
+    function_name = info_dict["function_name"]
+    local_vars = info_dict["local_vars"]
+    
+    logging_string = f"""Filename: {filename}
                     Function {function_name} 
-                      Line: {line_number} 
-                        Local variables: """
-    logging_string += " \n " + ", \n".join([f"{k}={v!r}" for k, v in local_vars.items()])
-    # Log each local variable
-    passed_logger.debug(logging_string)
+                      Line: {line_number}\n"""
+
+    if have_local_vars:
+        logging_string += "Local variables: "
+        logging_string += " \n " + ", \n".join([f"{k}={v!r}" for k, v in local_vars.items()])
+
+    return logging_string
+
+
+
+
+
+def log_locals(passed_logger=DEFAULT_LOGGER):
+    """
+    Log all local variables in the current frame.
+    
+    :param logger: The logger to use (defaults to DEFAULT_LOGGER)
+    """
+
+    frame = get_frame_up_the_stack(2)
+    frame_info = get_func_frame_info_dict(frame)
     
     # Break potential reference cycle 
     del frame
+
+    info_string = info_dict_to_string(frame_info)
+
+
+    
+    logging_string = " @local_log \n" + info_string
+    passed_logger.debug(logging_string)
+
+
+
+
+
+def log_stack(passed_logger=DEFAULT_LOGGER):
+    """
+    Log the stack trace.
+    """
+
+    logging_string = " @stack_log \n"
+    all_info_dicts = []
+
+    stack = inspect.stack()
+
+    for ix, frame_info_class in enumerate(stack):
+        frame = frame_info_class.frame
+        
+        frame_info = get_func_frame_info_dict(frame)
+        frame_info_string = info_dict_to_string(frame_info)
+        
+        logging_string += 4*"\n" + 15*"-" + "\n"
+        logging_string += f"Frame {ix}\n" + frame_info_string + "\n"
+        all_info_dicts.append(frame_info)
+
+
+    # Log each local variable
+    passed_logger.debug(logging_string)
+
+    return all_info_dicts
+
+
+def manual_log(passed_logger=DEFAULT_LOGGER, *args, **kwargs):
+    
+    
+    logging_string = " @manual_log \n"
+    
+    frame = get_frame_up_the_stack(2)
+    frame_info = get_func_frame_info_dict(frame)
+    
+    # Break potential reference cycle 
+    del frame
+
+    info_string = info_dict_to_string(frame_info, have_local_vars=False)
+    logging_string += info_string
+
+
+
+    for arg in args:
+        logging_string += f"{arg} \n"
+
+    for k, v in kwargs.items():
+        logging_string += f"{k}={v!r} \n"
+
+    passed_logger.debug(logging_string)
 
 
 

@@ -30,13 +30,78 @@ const Line = ({text, cutoff_length}) => {
 // Main component to split text and render Line components
 const TextSplitter = ({lineText, cutoff_length}) => {
     // Split the text by newline characters
-    const lines = lineText.split('\n');
+    const startingLines = lineText.split('[START_VAR]');
+    
+    var lines = [];
+    var isVar = [];
+
+    for (var i = 0; i < startingLines.length; i++) {
+      
+      // the 2 in the split function means that the max number of splits is 2, so if every [START_VAR] has an [END_VAR]
+      // then we can have other stuff than VARs printed out before the next [START_VAR].
+      var curr_split = startingLines[i].split('[END_VAR]', 2)
+
+      // If there is no [END_VAR] then we aren't in a VAR block.
+      // If there is one, we also need to handle the case where there is nothing after the [END_VAR] so we don't print an empty line.
+      // And also, when there is something after the [END_VAR], and that thing is specifically ", \n", we want to join that into one string.
+      // Just using ", \n" doesn't work. So we console logged curr_split[1] and put what it gave us into a multiline string.
+      const multilineEquivalent = `, 
+ `
+      
+      var isVarAppender = []
+      if (curr_split.length == 1) {
+        isVarAppender = [false]
+      } else if (curr_split.length == 2) {
+        
+        if (curr_split[1] == '') {
+          curr_split.pop() //removes last element
+          isVarAppender = [true]
+          // console.log(curr_split)
+        } else {
+          
+          // console.log(curr_split[1])
+          
+          if (curr_split[1] == multilineEquivalent) {
+            curr_split[0] = curr_split[0] + ", "
+            curr_split.pop()
+            isVarAppender = [true]
+          } else {
+            isVarAppender = [true, false]
+          }
+        }
+
+      } else {
+        throw new Error("Number of splits is wrong!");
+      }
+
+      // The ... means that push will extend the array final_lines, not append the new array itself
+      lines.push(...curr_split);
+      isVar.push(...isVarAppender);
+    }
+
+    var set_of_VAR_ixs = new Set();
+    for (var i = 0; i < isVar.length; i++) {
+      if (isVar[i]) {
+        set_of_VAR_ixs.add(i);
+      }
+    }
+
+    
+    const renderLine = (line, index) => {
+      if (set_of_VAR_ixs.has(index)) {
+        return <Line key={index} text={line} cutoff_length={cutoff_length} />
+      } else {
+        return (
+          <div key={index}>
+            {line}
+          </div>
+        )
+      }
+    };
   
     return (
       <div>
-        {lines.map((line, index) => (
-          <Line key={index} text={line} cutoff_length={cutoff_length} />
-        ))}
+        {lines.map(renderLine)}
       </div>
     );
 }

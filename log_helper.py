@@ -12,9 +12,9 @@ import os
 
 
 
+# !!!!!!!!!!!!! Please read the TL;DR !!!!!!!!!!!!! 
+# Should be more then enough if you don't care about understanding this code and just want to use it.
 
-# !!!!!!!!!!!!! Please read to a line of dashes, such as this one, before using the code !!!!!!!!!!!!! 
-# ----------------------------------------------------------------------------------------------------------------------------
 
 # TL;DR:
 """
@@ -95,8 +95,9 @@ If you want the logging to stop, simply comment out the 2 file_handler_setup lin
 
 
 USE:
-Go clone and play with this repo to get example usages and how they work: https://github.com/MatevzVidovic/pylog_tester.git
-Especially for use of what log_stack returns. It comes in really handy in debugging with vizualizations.
+Go clone and play with the following repo to get example uses and how they work: https://github.com/MatevzVidovic/pylog_tester.git
+It will be easier than just reading this text (although, do that too).
+Especially go look for the use of what log_stack returns. It comes in really handy in debugging with vizualizations.
 {
 
 AUTOLOG:
@@ -242,6 +243,31 @@ although mostly you just use basic words to filter to what you are interested in
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# !!!!!!!!!!!!! Please read to a line of dashes, such as this one, before using the code !!!!!!!!!!!!! 
+# ----------------------------------------------------------------------------------------------------------------------------
 
 
 # How to use:
@@ -493,6 +519,14 @@ def file_handler_setup(logger, path_to_python_logger_folder, add_stdout_stream: 
 
 
 
+
+def mark_list_of_strings(list_of_strings, start_marker, end_marker=None):
+    if end_marker is None:
+        end_marker = start_marker
+    return [start_marker + s + end_marker for s in list_of_strings]
+
+
+
 def get_frame_up_the_stack(num_back):
     """
     :param num_back: The number of frames to go back.
@@ -550,7 +584,9 @@ def info_dict_to_string(info_dict, have_local_vars=True):
 
     if have_local_vars:
         logging_string += "Local variables: "
-        logging_string += " \n " + ", \n".join([f"{k}={v!r}" for k, v in local_vars.items()])
+        local_vars_strs = [f"{k}={v!r}" for k, v in local_vars.items()]
+        marked = mark_list_of_strings(local_vars_strs, start_marker="[START_VAR]", end_marker="[END_VAR]")
+        logging_string += " \n " + ", \n".join(marked)
 
     return logging_string
 
@@ -623,13 +659,13 @@ def manual_log(passed_logger=DEFAULT_LOGGER, *args, **kwargs):
     info_string = info_dict_to_string(frame_info, have_local_vars=False)
     logging_string += info_string
 
-
-
-    for arg in args:
-        logging_string += f"{arg} \n"
-
-    for k, v in kwargs.items():
-        logging_string += f"{k}={v!r} \n"
+    
+    args_strs = [f"{arg!r}" for arg in args]
+    kwargs_strs = [f"{k}={v!r}" for k, v in kwargs.items()]
+    all_args = args_strs + kwargs_strs
+    marked = mark_list_of_strings(all_args, start_marker="[START_VAR]", end_marker="[END_VAR]")
+    
+    logging_string += " \n " + ", \n".join(marked)
 
     passed_logger.debug(logging_string)
 
@@ -786,9 +822,10 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None):
 
                 # Log function call
                 printable_args = [f"{k}={v!r}" for k, v in bound_args.arguments.items()]
+                marked_printable_args = mark_list_of_strings(printable_args, start_marker="[START_VAR]", end_marker="[END_VAR]")
                 logging_string = f""" @autolog 
                               Function {func.__name__} called with arguments: """
-                logging_string += " \n " + ", \n".join(printable_args)
+                logging_string += " \n " + ", \n".join(marked_printable_args)
                 logger.debug(logging_string)
 
                 # Initial weird way

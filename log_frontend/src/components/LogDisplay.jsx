@@ -57,7 +57,7 @@ const LogDisplay = () => {
   return (
     <div className="log-container">
       <div>
-        <label>Set new cutoff length (length of line where the line stops unless you click on it):</label>
+        <label>Set new cutoff length (length of text of a var or arg where the text stops unless you click on it):</label>
         <input
           type="number"
           value={cutoffLength}

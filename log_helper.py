@@ -18,6 +18,9 @@ import os
 
 # TL;DR:
 """
+
+SETUP:
+
 Add this repo as a submodule:
 git submodule add https://github.com/MatevzVidovic/python_logger.git
 git commit -m "Add python_logger as a submodule"
@@ -36,7 +39,7 @@ And open the localhost that is shown in the terminal in your browser.
 
 You might need to pip3 install flask and flask_cors.
 For the frontend, you might need to install node and npm.
-Then you might need to install vite (i think with npm or sth).
+Then you might need to install vite (npm install vite --save-dev).
 And then your node version might be too old or something, so you need to update nvm or sth,
 idk, I just coppied what chatGPT gave when I gave it the error message and it worked.
 
@@ -47,9 +50,13 @@ And then the submodule commit that the main repo uses
 is automatically changed in the main repo. So maybe go to the main repo folder and 
 commit that before making new changes in the main repo. It sounds complicated but you will get it when you do it.
 
+I suggest you fork the python_logger repo and then add your fork as a submodule instead.
+This will allow you to change the python_logger code
+(mainly, the globals in this file, like ASSERT_TYPES and LET_LOGGER_CRASH_PROGRAM)
 
 
 
+CODE SETUP:
 
 In your main file, above all imports at the top of the file, add this code:
 (above all imports so that the logger handler is created before 
@@ -77,23 +84,99 @@ import python_logger.log_helper as py_log
 
 MY_LOGGER = logging.getLogger("prototip") # or any string. Mind this: same string, same logger.
 MY_LOGGER.setLevel(logging.DEBUG)
+
+For production code, you generally dont't want the logger to crash the program.
+So you set LET_LOGGER_CRASH_PROGRAM = False below.
+
+If you want the logging to stop, simply comment out the 2 file_handler_setup lines in your main file.
 }
 
 
+
+
+USE:
+Go clone and play with this repo to get example usages and how they work: https://github.com/MatevzVidovic/pylog_tester.git
+Especially for use of what log_stack returns. It comes in really handy in debugging with vizualizations.
+{
+
+AUTOLOG:
 
 # Add @py_log.log(passed_logger=MY_LOGGER) above functions you want to log.
 @py_log.log(passed_logger=MY_LOGGER)
 def foo(a, b, c):
     pass
 
-# These automatic logs all contain " @autolog " in their printout.
+These automatic logs all contain " @autolog " in their printout.
 
-# Add py_log.log_locals(MY_LOGGER) above every return.
-# These logs contain " @log_locals " in its printout instead.
+This logs the function name and its arguments when the function is called.
+It checks if the type hints match the passed parameters.
+To disable this type checking, set ASSERT_TYPES = False below.
+
+
+DON'T USE THIS:
+
+You can also put
+@py_log.log_for_class(passed_logger=MY_LOGGER)
+above a class definition.
+This will set @py_log.log(passed_logger=MY_LOGGER) to all the class's methods.
+It also adds a __str__ method to the class, which prints all its attributes.
+(Turn this off by setting ADD_AUTOMATIC_STR_METHOD = False below.)
+
+This seems nice at first, but it also sets the logging to __init__ 
+and other methods python includes by default. And you don't want that.
+Also, having log for all methods is too much clutter anyway.
+
+
+LOCAL_LOG:
+
+Add py_log.log_locals(MY_LOGGER) somewhere in the code.
+It will print all the local variables at that point (function scope variables).
+Possibly add this above every return.
+These logs contain " @local_log " in its printout.
+
+
+MANUAL_LOG:
+
+Use py_log.manual_log(MY_LOGGER, *args, **kwargs) to log whatever you want.
+You just give anything as arguments and keyword arguments and it will log them.
+These logs contain " @manual_log " in its printout.
+
+I suggest using kwargs for better readability - manual log will log 
+what keyword you used for the argument, so you can easily be sure what is what in the log.
+
+Possibly use your own @something_something as arguments in your manual logs.
+This will allow you to use the regex aspect of the log viewer to filter out only certain manual logs.
+
+Example:
+py_log.manual_log(MY_LOGGER, "rocni string", vrba, vrbica_moja=vrba)
+(vrba was a variable in that scope)
+
+
+
+STACK_LOG:
+
+Use py_log.log_stack(MY_LOGGER) anywhere in the code to log the local vars in the entire stack trace.
+These logs contain " @stack_log " in its printout.
+
+py_log.log_stack also returns a list of info dicts, which contain the filename, function name, local vars dict, ...
+list_of_info_dicts = py_log.log_stack(MY_LOGGER)
+This list can then be used to find the local variables of a function that is not in the current scope. 
+This is very useful in except blocks, where you might want to use vizualization functions you imported to this file,
+and use them on your objects that are out of scope in this except block.
+This except block might be in a func in a class in a file that gets imported by the main file.
+And still through this we can get access to an object that is a global var in the main file.
+
+}
 
 
 
 
+
+
+ENABLING OF LAZINESS:
+
+If you are lazy and don't care about clutter of logs:
+{
 # To do this easily in VS code, use regex:
 
 ^(?!.*@log\n)( *)def
@@ -104,8 +187,10 @@ def foo(a, b, c):
 
 # Find: ^( *)return
 # Replace: $1log_locals(passed_logger=MY_LOGGER)\n$1return
+}
 
 
+VIEWING LOGS:
 
 # To start the viewing in your browser, go into pyton_logger in your terminal.
 # Run log_server.py.
@@ -117,6 +202,33 @@ def foo(a, b, c):
 
 Possibly you need to run npm install in log_frontend before npm run dev.
 And maybe do some pip3 install for stuff from log_server.py
+
+Often times you need to ctrl+C the log_server.py and then run it again.
+It just works a little wonky for some reason.
+
+
+USING LOG VIEWER:
+
+You can use the regex bar to filter the logs.
+Example usage: You write @autolog in the input field.
+The button beside the field says contain.
+You click Add Regex.
+You then click Send Current Regex.
+Then you click on Refresh Logs.
+
+The new logs should be only the ones, which contain @autolog somewhere in their text.
+
+You could also have toggled the contain button to not-contain.
+Then the logs that remained in the view would be only those that 
+do not contain @autolog anywhere in their text.
+
+You can use more than one regex contain/not-contain at a time.
+All the conditions must hold for a log to be kept in view.
+
+And you can use actual regex in the input field, not just basic words, 
+although mostly you just use basic words to filter to what you are interested in.
+
+
 
 """
 

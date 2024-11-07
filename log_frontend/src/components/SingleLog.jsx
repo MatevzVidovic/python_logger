@@ -125,9 +125,9 @@ const SingleLog = (lineText, logType, functionNumber, index, cutoff_length) => {
         case '@manual_log':
             return 'rgb(54, 162, 235)'; // Blue
         case '@stack_log':
-            return 'rgb(153, 102, 255)'; // Purple
+          return 'rgb(220, 53, 69)'; // Red
         default:
-            return 'rgb(220, 53, 69)'; // Red
+            return 'rgb(153, 102, 255)'; // Purple
         }
     };
 

@@ -51,8 +51,7 @@ is automatically changed in the main repo. So maybe go to the main repo folder a
 commit that before making new changes in the main repo. It sounds complicated but you will get it when you do it.
 
 I suggest you fork the python_logger repo and then add your fork as a submodule instead.
-This will allow you to change the python_logger code
-(mainly, the globals in this file, like ASSERT_TYPES and LET_LOGGER_CRASH_PROGRAM)
+This will allow you to change the python_logger code (minor changes for your case are very easy).
 
 
 
@@ -85,9 +84,6 @@ import python_logger.log_helper as py_log
 MY_LOGGER = logging.getLogger("prototip") # or any string. Mind this: same string, same logger.
 MY_LOGGER.setLevel(logging.DEBUG)
 
-For production code, you generally dont't want the logger to crash the program.
-So you set LET_LOGGER_CRASH_PROGRAM = False below.
-
 If you want the logging to stop, simply comment out the 2 file_handler_setup lines in your main file.
 }
 
@@ -111,29 +107,106 @@ These automatic logs all contain " @autolog " in their printout.
 
 This logs the function name and its arguments when the function is called.
 It checks if the type hints match the passed parameters.
-To disable this type checking, set ASSERT_TYPES = False below.
+
+If the types don't match (assertion error), or some other exception happens in logger (possibly due to a bug),
+it will crash the code.
+
+You can disable both these behaviours by calling the decorator like so:
+@py_log.log(passed_logger=MY_LOGGER, assert_types=False, let_logger_crash_program=False)
 
 
-DON'T USE THIS:
+
+LOG_FOR_CLASS:
 
 You can also put
 @py_log.log_for_class(passed_logger=MY_LOGGER)
 above a class definition.
-This will set @py_log.log(passed_logger=MY_LOGGER) to all the class's methods.
-It also adds a __str__ method to the class, which prints all its attributes.
-(Turn this off by setting ADD_AUTOMATIC_STR_METHOD = False below.)
+
+This does 3 things. They can all be disabled if you call this like so:
+@py_log.log_for_class(passed_logger=MY_LOGGER, add_automatic_str_method=False, add_automatic_repr_method=False, add_class_autolog=False)
+
+If add_class_autolog = True,
+this will set @py_log.log(passed_logger=MY_LOGGER) to all the class's methods.
 
 This seems nice at first, but it also sets the logging to __init__ 
 and other methods python includes by default. And you don't want that.
 Also, having log for all methods is too much clutter anyway.
 
+If add_automatic_str_method = True,
+it also adds a __str__ method to the class, which prints all its attributes.
+This is nice if you want to print the object in your code.
 
-LOCAL_LOG:
+!!! Most importantly:
 
+If add_automatic_repr_method = True,
+it also adds a __repr__ method to the class, which prints all the objects attributes.
+This is important, because when this class is logged, __repr__ is called.
+So without it, you will only get the pointer to the object in your log.
+
+When we do logging, we are always calling __repr__ of our attributes (by using {v!r}.
+This is a general python magic method, which gives a comprehensive string representation of the object 
+(unlike __str__, which is meant to be more user friendly).
+
+
+
+LOG_LOCALS:
+{
 Add py_log.log_locals(MY_LOGGER) somewhere in the code.
 It will print all the local variables at that point (function scope variables).
 Possibly add this above every return.
-These logs contain " @local_log " in its printout.
+These logs contain " @log_locals " in its printout.
+
+You can also pass a list with a number to log_locals to limit the number of times it logs.
+Example:
+{
+GLOBAL_LIST = [5]
+py_log.log_locals(MY_LOGGER, GLOBAL_LIST)
+}
+At each logging, the number in the list will be decremented.
+If the number is <= 0, log_locals will not log anything.
+
+
+
+Object attribute logging:
+
+You are debugging some numpy code. A local variable is a numpy array. It gets logged.
+You don't see anything from that log - it's just a cropped printout of the array.
+You don't know the shape, the mean, the std, the min, the max, the sum, ...
+We can fix that. 
+
+Default paramters of log_locals are:
+py_log.log_locals(passed_logger=DEFAULT_LOGGER, list_with_limiting_number=[], check_attributes=True, attr_sets=["size"], added_attribute_names=[])
+The last three parameters work like so:
+if check_attributes=True, you can pass, for example: added_attribute_names=["shape", "mean"].
+For each local variable, we will check if it has the attributes shape and mean.
+E.g. for shape, that means either .shape() or .shape.
+If it has .shape(), we will log its result. If it doesn't, but it has .shape, we will log that.
+
+There are also two predefined attribute sets: "size" and "math".
+"size" checks for shape, size, dtype, __len__.
+"math" checks for mean, std, min, max, sum.
+You can pass these set names in a list to attr_sets.
+By default, this is only ["size"], because math operations take longer to compute.
+
+
+Suggestion:
+When debugging maybe just use log_locals everywhere.
+Its the same line every time, so you can just keep pasting it.
+And deleting it is simply find and replace.
+It's nice and easy.
+You then just:
+- have code in your left part of the screen, 
+- log frontend on the right, 
+- you use regex for " @log_locals ", possibly for "Function {func_name}", 
+- and then you just see look for what you are interested in by line number.
+And even if it clutters code a bit, it's still less clutter and much easier and nicer 
+than coming up with relevant printouts, and printing out everything after every change, 
+and making the printouts f-strings saying what is currently being printed out so you can even interpret the printouts.
+
+(Lesser suggestion below in the text - search for "Lesser suggestion")
+
+}
+
 
 
 MANUAL_LOG:
@@ -154,10 +227,10 @@ py_log.manual_log(MY_LOGGER, "rocni string", vrba, vrbica_moja=vrba)
 
 
 
-STACK_LOG:
+LOG_STACK:
 
 Use py_log.log_stack(MY_LOGGER) anywhere in the code to log the local vars in the entire stack trace.
-These logs contain " @stack_log " in its printout.
+These logs contain " @log_stack " in its printout.
 
 py_log.log_stack also returns a list of info dicts, which contain the filename, function name, local vars dict, ...
 list_of_info_dicts = py_log.log_stack(MY_LOGGER)
@@ -166,6 +239,18 @@ This is very useful in except blocks, where you might want to use vizualization 
 and use them on your objects that are out of scope in this except block.
 This except block might be in a func in a class in a file that gets imported by the main file.
 And still through this we can get access to an object that is a global var in the main file.
+
+The same Object attribute logging as in log_locals can be used in log_stack.
+
+Suggestion:
+Put the entire code of a function in a try block. In the except block, log_stack.
+This way, you get the image of the local variables at the time of the exception.
+try:
+    all_of_function_code
+except Exception as e:
+    py_log.log_stack(MY_LOGGER)
+    raise e
+
 
 }
 
@@ -239,7 +324,41 @@ although mostly you just use basic words to filter to what you are interested in
 
 
 
+"""
 
+"Lesser suggestion"
+Alternatively, you could just have one log_locals at the bottom of the function, and you keep making new names for variables like so:
+- Newnaming:
+{
+orig_img = Image.load(path)
+transformed_img = my_transform(img)
+}
+Instead of renaming them:
+{
+img = Image.load(path)
+img = my_transform(img)
+}
+The biggest problem is, that when an exception happens on the way, you never get to the logging.
+And also, in shorter chains of such changes on this one variable you keep changing 
+in a pipeline, new_naming works great - great readability, 
+because on every line you are sure where the last change happened, 
+because the unique name is literally in the line.
+But with longer pipelines, especially ones where you might be permuting the lines 
+(like in image data augmentation, where there is no best order of lines) 
+this becomes a huge pain.
+
+
+AUTOLOG:
+
+With autolog, you can also use the parameter:
+log_stack_on_exception=True
+When an exception happens in this function, it will do log_stack.
+But since this is called from the decorator, the stack log doesn't actually have the called function's frame in it.
+So you will get the stack, except for the called function - which is generally not very useful.
+But you can use it if it helps in your case.
+
+
+"""
 
 
 
@@ -315,11 +434,11 @@ MY_LOGGER = logging.getLogger(__name__)
 # It will check if the type hints match the passed parameters.
 # If not, it logs a critical message.
 # If ASSERT_TYPES == True, throw assertion error if types don't match.
-ASSERT_TYPES = True
+# ASSERT_TYPES = True
 
 # In production, we don't want the logger to crash the program.
 # If this is false, the assertion errors will go unnoticed.
-LET_LOGGER_CRASH_PROGRAM = True
+# LET_LOGGER_CRASH_PROGRAM = True
 
 # These automatic logs all contain " @autolog " in their printout.
 
@@ -353,13 +472,13 @@ LET_LOGGER_CRASH_PROGRAM = True
 
 # Possibly add @log_for_class(passed_logger=YOUR_LOGGER) above your classes. This can:
 
-# if ADD_CLASS_AUTOLOG == True
+# if add_class_autolog == True
 # - set @log decorator to all the class's methods. The problem is, it's not just your methods. It's also __init__ and other methods.
-ADD_CLASS_AUTOLOG = True
 
-# If ADD_AUTOMATIC_STR_METHOD == True
+# If add_automatic_str_method == True
 # - add a __str__ method to the class, which prints all its attributes.
-ADD_AUTOMATIC_STR_METHOD = True
+
+# If add_automatic_repr_method == True
 # This is important for logging, because when you have an object of such class in your code,
 #  you want it to be logged with the attributes, not just the pointer to the object - that's useless.
 
@@ -571,7 +690,7 @@ def get_func_frame_info_dict(frame):
     
     return returning_dict
 
-def info_dict_to_string(info_dict, have_local_vars=True):
+def info_dict_to_string(info_dict, have_local_vars=True, check_attributes=True, attr_sets=["size"], added_attribute_names=[]):
 
     filename = info_dict["filename"]
     line_number = info_dict["line_number"]
@@ -584,7 +703,49 @@ def info_dict_to_string(info_dict, have_local_vars=True):
 
     if have_local_vars:
         logging_string += "Local variables: "
-        local_vars_strs = [f"{k}={v!r}" for k, v in local_vars.items()]
+
+
+
+        check_attrs = [name for name in added_attribute_names]
+        # if v has .shape, .size, .dtype, .__len__ or .shape(), .size(), .dtype(), .__len__(), we want to log that too.
+        if "size" in attr_sets:
+            check_attrs += ["shape", "size", "dtype", "__len__"]
+        if "math" in attr_sets:
+            check_attrs += ["mean", "std", "min", "max", "sum"]
+
+
+        local_vars_strs = []
+        for k, v in local_vars.items():
+            curr_str = f"{k} ({type(v)}) "
+
+            if check_attributes:
+                try:
+                    for attr_name in check_attrs:
+                        
+                        curr_attr = getattr(v, attr_name, "No such attribute.")
+
+                        if curr_attr == "No such attribute.":
+                            continue
+                        
+                        # With getattr you get the method or attribute of the object with that name.
+                        # If the object has both a method and an attribute with the same name,
+                        # the method is returned. There is a workaround with example_obj.__dict__['shape']
+                        # to get the attribute instead of the method. But if it has both we will just stick with
+                        # only getting the method for now.
+
+                        if callable(curr_attr):
+                            curr_str += f"[{attr_name}(): {curr_attr()}] "
+                        else:
+                            curr_str += f"[{attr_name}: {curr_attr}] "
+
+                except:
+                    curr_str += f"(logger error in trying tt get .shape, .size, .dtype) "
+            
+            curr_str += f"= {v!r}"
+            local_vars_strs.append(curr_str)
+
+        # local_vars_strs = [f"{k}={v!r}" for k, v in local_vars.items()]
+
         marked = mark_list_of_strings(local_vars_strs, start_marker="[START_VAR]", end_marker="[END_VAR]")
         logging_string += " \n " + ", \n".join(marked)
 
@@ -594,12 +755,18 @@ def info_dict_to_string(info_dict, have_local_vars=True):
 
 
 
-def log_locals(passed_logger=DEFAULT_LOGGER):
+def log_locals(passed_logger=DEFAULT_LOGGER, list_with_limiting_number=[], check_attributes=True, attr_sets=["size"], added_attribute_names=[]):
     """
     Log all local variables in the current frame.
     
     :param logger: The logger to use (defaults to DEFAULT_LOGGER)
     """
+
+    if len(list_with_limiting_number) == 1: 
+        if list_with_limiting_number[0] <= 0:
+            return
+        else:
+            list_with_limiting_number[0] -= 1
 
     frame = get_frame_up_the_stack(2)
     frame_info = get_func_frame_info_dict(frame)
@@ -607,23 +774,23 @@ def log_locals(passed_logger=DEFAULT_LOGGER):
     # Break potential reference cycle 
     del frame
 
-    info_string = info_dict_to_string(frame_info)
+    info_string = info_dict_to_string(frame_info, check_attributes=check_attributes, attr_sets=attr_sets, added_attribute_names=added_attribute_names)
 
 
     
-    logging_string = " @local_log \n" + info_string
+    logging_string = " @log_locals \n" + info_string
     passed_logger.debug(logging_string)
 
 
 
 
 
-def log_stack(passed_logger=DEFAULT_LOGGER):
+def log_stack(passed_logger=DEFAULT_LOGGER, check_attributes=True, attr_sets=["size"], added_attribute_names=[]):
     """
     Log the stack trace.
     """
 
-    logging_string = " @stack_log \n"
+    logging_string = " @log_stack \n"
     all_info_dicts = []
 
     stack = inspect.stack()
@@ -632,7 +799,7 @@ def log_stack(passed_logger=DEFAULT_LOGGER):
         frame = frame_info_class.frame
         
         frame_info = get_func_frame_info_dict(frame)
-        frame_info_string = info_dict_to_string(frame_info)
+        frame_info_string = info_dict_to_string(frame_info, check_attributes=check_attributes, attr_sets=attr_sets, added_attribute_names=added_attribute_names)
         
         logging_string += 4*"\n" + 15*"-" + "\n"
         logging_string += f"Frame {ix}\n" + frame_info_string + "\n"
@@ -757,7 +924,7 @@ class MyLogger:
 
 
 
-def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None):
+def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None, assert_types=True, let_logger_crash_program=True, log_stack_on_exception=False):
     def decorator_log(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -765,7 +932,7 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None):
 
             # This try is meant to not crash the code in production.
             # When using it for development, I would rather have it crash.
-            # To do that, I would set LET_LOGGER_CRASH_PROGRAM to True.
+            # To do that, I would set let_logger_crash_program to True.
             try:
                 if passed_logger is None:
 
@@ -848,14 +1015,14 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None):
                         logger.critical(f""" @autolog 
                                          Type mismatch for parameter '{param}'. 
                                            Expected {param_type}, got {type(arg_value)}""")
-                        if ASSERT_TYPES:
+                        if assert_types:
                             assert param_type == type(arg_value), f"Type mismatch for parameter {param}. Expected {param_type}, got {type(arg_value)}"
                             # raise TypeError(f"Type mismatch for parameter {param}. Expected {param_type}, got {type(arg_value)}")
 
 
 
             except Exception as e:
-                if LET_LOGGER_CRASH_PROGRAM:
+                if let_logger_crash_program:
                     raise e
 
 
@@ -863,6 +1030,8 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None):
                 result = func(*args, **kwargs)
                 return result
             except Exception as e:
+                if log_stack_on_exception:
+                    log_stack(logger)
                 logger.exception(f""" @autolog 
                                  Exception raised in {func.__name__}. 
                                     exception: {str(e)}""")
@@ -876,17 +1045,24 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None):
 
 
 
-def log_for_class(_cls=None, *, passed_logger: Union[MyLogger, logging.Logger] = None):
+def log_for_class(_cls=None, *, passed_logger: Union[MyLogger, logging.Logger] = None, add_automatic_str_method=True, add_automatic_repr_method=True, add_class_autolog=True):
 
     def decorator(cls):
         # Add automatic __str__ method if requested
-        if ADD_AUTOMATIC_STR_METHOD:
+        if add_automatic_str_method:
             def auto_str(self):
                 attrs = vars(self)
                 return f"{cls.__name__}({', '.join(f'{key}={value}' for key, value in attrs.items())})"
             cls.__str__ = auto_str
+        
+        # Add automatic __repr__ method
+        if add_automatic_repr_method:
+            def auto_repr(self):
+                attrs = vars(self)
+                return f"{cls.__name__}({', '.join(f'{key}={value!r}' for key, value in attrs.items())})"
+            cls.__repr__ = auto_repr
 
-        if ADD_CLASS_AUTOLOG:
+        if add_class_autolog:
             # Wrap each method with the log decorator
             for name, member in inspect.getmembers(cls):
                 if inspect.isfunction(member):
@@ -912,7 +1088,7 @@ def log_for_class(cls):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
         
-        if ADD_AUTOMATIC_STR_METHOD:
+        if add_automatic_str_method:
             def __str__(self):
                 attrs = vars(self)
                 return f"{cls.__name__}({', '.join(f'{key}={value}' for key, value in attrs.items())})"

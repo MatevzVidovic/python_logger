@@ -89,7 +89,14 @@ const LogDisplay = () => {
         <button onClick={handleNextPage}>Next</button>
       </div>
       {logs.map(([lineText, logType, functionNumber], index) => (
-        SingleLog(lineText, logType, functionNumber, index, cutoffLength)
+        <SingleLog
+          key={index}
+          lineText={lineText}
+          logType={logType}
+          functionNumber={functionNumber}
+          index={index}
+          cutoff_length={cutoffLength}
+        />
       ))}
       <div className="pagination-controls">
         <button onClick={handlePreviousPage} disabled={page === 1}>Previous</button>

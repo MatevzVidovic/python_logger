@@ -719,9 +719,8 @@ def info_dict_to_string(info_dict, have_local_vars=True, check_attributes=True, 
             curr_str = f"{k} ({type(v)}) "
 
             if check_attributes:
-                try:
-                    for attr_name in check_attrs:
-                        
+                for attr_name in check_attrs:
+                    try:
                         curr_attr = getattr(v, attr_name, "No such attribute.")
 
                         if curr_attr == "No such attribute.":
@@ -738,8 +737,9 @@ def info_dict_to_string(info_dict, have_local_vars=True, check_attributes=True, 
                         else:
                             curr_str += f"[{attr_name}: {curr_attr}] "
 
-                except:
-                    curr_str += f"(logger error in trying tt get .shape, .size, .dtype) "
+                    except Exception as e:
+                        curr_str += f"(logger error in trying to get {attr_name}. Error: {e}) "
+
             
             curr_str += f"= {v!r}"
             local_vars_strs.append(curr_str)

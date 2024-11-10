@@ -7,6 +7,7 @@ const LogDisplay = () => {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(1000); // Number of logs per page
   const [cutoffLength, setCutoffLength] = useState(100);
+  const [allShortened, setAllShortened] = useState(true);
   const [error, setError] = useState(null);
 
 
@@ -16,6 +17,9 @@ const LogDisplay = () => {
       .then(
         (data) => {
           setLogs(data);
+          // console.log("data", data);
+          // len of data
+          console.log("len of data", data.length);
         }
       )
       .catch((error) => {
@@ -47,6 +51,10 @@ const LogDisplay = () => {
 
   const handleCutoffLengthChange = (event) => {
     setCutoffLength(Number(event.target.value));
+  };
+
+  const handleAllShortenedChange = () => {
+    setAllShortened(!allShortened);
   };
 
 
@@ -84,9 +92,15 @@ const LogDisplay = () => {
         />
       </div>
       <button onClick={fetchLogs}>Refresh Logs</button>
+      <button onClick={handleAllShortenedChange}>
+        {allShortened ? 'Expand All' : 'Shorten All'}
+      </button>
       <div className="pagination-controls">
         <button onClick={handlePreviousPage} disabled={page === 1}>Previous</button>
         <button onClick={handleNextPage}>Next</button>
+      </div>
+      <div>
+        Num of logs on page: {logs.length}
       </div>
       {logs.map(([lineText, logType, functionNumber], index) => (
         <SingleLog
@@ -96,8 +110,13 @@ const LogDisplay = () => {
           functionNumber={functionNumber}
           index={index}
           cutoff_length={cutoffLength}
+          allShortened={allShortened}
         />
       ))}
+      <button onClick={fetchLogs}>Refresh Logs</button>
+      <button onClick={handleAllShortenedChange}>
+        {allShortened ? 'Expand All' : 'Shorten All'}
+      </button>
       <div className="pagination-controls">
         <button onClick={handlePreviousPage} disabled={page === 1}>Previous</button>
         <button onClick={handleNextPage}>Next</button>

@@ -6,7 +6,7 @@ from flask_cors import CORS
 import time
 import os
 from threading import Thread
-
+import threading
 
 
 
@@ -26,11 +26,44 @@ app = Flask(__name__)
 CORS(app)
 
 
+
+
+
+import signal
+import sys
+
+# Event to signal threads to stop
+stop_event = threading.Event()
+
+def signal_handler(sig, frame):
+    print("SIGINT received, stopping threads...")
+    stop_event.set()
+    sys.exit(0)
+
+
+
+
+
+
+
+
+
+
 LOG_FILE_PATH = None
+LOG_FILE_LINE_COUNT = 0
+CHECK_LINE_COUNT = True
 PARSED_LINES = []
 PREVIOUS_REQUIRED_REGEXS = []
 REQUIRED_REGEXS = []
 CHECK_LATEST_LOG_PATH = False
+
+
+# This is efficient, because it is a generator expression, so it does not actually read the file into memory.
+def count_lines(file_path):
+    if file_path == None:
+        return 0
+    with open(file_path, 'r') as file:
+        return sum(1 for line in file)
 
 def parse_log_file():
     global LOG_FILE_PATH
@@ -103,10 +136,16 @@ def paginate_lines(lines, page, page_size):
 
 @app.route('/logs')
 def get_logs():
+
+    global CHECK_LINE_COUNT
+
     if LOG_FILE_PATH:
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
-        return jsonify(paginate_lines(PARSED_LINES, page, per_page))
+        returning_JSON = jsonify(paginate_lines(PARSED_LINES, page, per_page))
+        # To trigger possible update of log file, if lines have been added.
+        CHECK_LINE_COUNT = True
+        return returning_JSON
     else:
         return jsonify({"error": "No log file specified"}), 400
 
@@ -134,17 +173,25 @@ def update_required_regexs():
         return jsonify({"error": "Request must be JSON"}), 400
 
 
-
+CHECK_ITERS = 0
 
 def check_latest_log_and_required_regexs():
     global LOG_FILE_PATH
     global PREVIOUS_REQUIRED_REGEXS
     global REQUIRED_REGEXS
+
+    global CHECK_ITERS
+    global CHECK_LINE_COUNT
+    global LOG_FILE_LINE_COUNT
     
     logs_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
     latest_log_path = os.path.join(logs_folder, "latest_log_name.txt")
 
     while True:
+        
+        # When sigint is received, stop the thread
+        if stop_event.is_set():
+            return
 
         do_parse = False
 
@@ -167,16 +214,36 @@ def check_latest_log_and_required_regexs():
             print(f"New required content: {REQUIRED_REGEXS}")
             do_parse = True
         
+
+
+        # If a refresh request is made, right after it we go refresh the parsed lines.
+        # (We don't do this at the time of the request, because it might take a while to parse the log file and a the request then fails, and error is sent.)
+        # Check for this every k seconds anyway.
+        if CHECK_LINE_COUNT or CHECK_ITERS % 10 == 0:
+            CHECK_ITERS = 0
+            CHECK_LINE_COUNT = False
+            new_line_count = count_lines(LOG_FILE_PATH)
+            if new_line_count != LOG_FILE_LINE_COUNT:
+                LOG_FILE_LINE_COUNT = new_line_count
+                print(f"New line count: {LOG_FILE_LINE_COUNT}")
+                do_parse = True
+        
         if do_parse:
             parse_log_file()
 
 
+        # print(len(PARSED_LINES))
+
+        CHECK_ITERS += 1
 
         time.sleep(1)
 
 
 
 if __name__ == '__main__':
+
+    signal.signal(signal.SIGINT, signal_handler)
+
     parser = argparse.ArgumentParser(description='Log File Parser Server')
 
     # if no argument is provided, log_file will be None
@@ -199,12 +266,12 @@ if __name__ == '__main__':
     # Keeps checking it every second and notifies us when the file changed.
     else:
         CHECK_LATEST_LOG_PATH = True
-        # print("here1")
         latest_log_path = os.path.join(logs_folder, "latest_log_name.txt")
         if os.path.exists(latest_log_path):
             with open(latest_log_path, 'r') as file:
                 log_filename = file.read().strip()
                 LOG_FILE_PATH = os.path.join(logs_folder, log_filename)
+                LOG_FILE_LINE_COUNT = count_lines(LOG_FILE_PATH)
                 parse_log_file()
         else:
             print("Warning: No 'latest_log_name.txt' file found.")

@@ -108,14 +108,22 @@ const TextSplitter = ({lineText, cutoff_length}) => {
 
 
 
-const SingleLog = ({lineText, logType, functionNumber, index, cutoff_length}) => {
+const SingleLog = ({lineText, logType, functionNumber, index, cutoff_length, allShortened}) => {
 
-    const [isClicked, setIsClicked] = useState(false);
+    const [isShortened, setIsShortened] = useState(allShortened);
+
+    // Sync isClicked state with allShortened prop when this component rerenders
+    // (useState doesn't just run again on rerender - the state is preserved)
+    useEffect(() => {
+      setIsShortened(allShortened);
+    }, [allShortened]);
+
 
     // Function to toggle the state
     const handleClick = () => {
-      setIsClicked(!isClicked);
+      setIsShortened(!isShortened);
     };
+
 
     const getColorForFunctionNumber = (number) => {
         // Generate a color based on the function number
@@ -168,9 +176,9 @@ const SingleLog = ({lineText, logType, functionNumber, index, cutoff_length}) =>
             whiteSpace: 'pre-wrap',
             width: 'calc(100% - 50px)',
           }}>
-            {isClicked ? (
+            {isShortened ? (
               <TextSplitter lineText={shortened_line_text(lineText)} cutoff_length={cutoff_length} />
-              ) : (
+            ) : (
               <TextSplitter lineText={lineText} cutoff_length={cutoff_length} />
             )}
           </div>

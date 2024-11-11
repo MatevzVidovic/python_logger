@@ -1288,11 +1288,21 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None, as
     def decorator_log(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
+
+            
+            # First we try to do the first part of loging time,
+            # and to set up what logger to use.
+            # If we fail here, no logging happens.
+            # Also, if we fail here, the try block that does the logging will fail too.
+            # But the function result will still be returned correctly.
+
             try:
+
+                # ----------------- SETTING UP TIME -----------------
 
                 func_name = func.__name__
 
-                
+                    
                 if LOG_TIME_AUTOLOG and time_log:
                     global LAST_LOG_TIME
                     global LAST_AUTOLOG_TIME
@@ -1308,6 +1318,63 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None, as
                 
 
 
+                # ----------------- SETTING UP LOGGER -----------------
+                
+                logger = DEFAULT_LOGGER
+
+                if passed_logger is None:
+
+                    # This tries to see it the logger was passed as an argument.
+                    first_args = next(iter(args), None)  # capture first arg to check for `self`
+                    logger_params = [  # does kwargs have any logger
+                        x
+                        for x in kwargs.values()
+                        if isinstance(x, logging.Logger) or isinstance(x, MyLogger)
+                    ] + [  # # does args have any logger
+                        x
+                        for x in args
+                        if isinstance(x, logging.Logger) or isinstance(x, MyLogger)
+                    ]
+
+
+                    # This tries to see if this is a method in a class that has a logger attribute.
+                    if hasattr(first_args, "__dict__"):  # is first argument `self`
+                        logger_params = logger_params + [
+                            x
+                            for x in first_args.__dict__.values()  # does class (dict) members have any logger
+                            if isinstance(x, logging.Logger)
+                            or isinstance(x, MyLogger)
+                        ]
+                    
+
+                    # Here we make our own logger if no logger was passed.
+                    # logger_params is a list of loggers.
+                    # If the function has a logger in its arguments, it will be used, because it is first in this list.
+                    # If not and the class has a logger, it will be used.
+                    # Otherwise logger_params is empty and BASIC_LOGGER is used.
+                    h_logger = next(iter(logger_params), DEFAULT_LOGGER)  # get the next/first/default logger
+                
+                else:
+                    h_logger = passed_logger  # logger is passed explicitly to the decorator
+
+
+                # We allowed MyLogger() to be passed as a logger.
+                # If it was, we need to get its actual logger here.
+                if isinstance(h_logger, MyLogger):
+                    logger = h_logger.get_logger(func.__name__)
+                else:
+                    logger = h_logger
+
+            except Exception as e:
+                if let_logger_crash_program:
+                    raise e
+
+
+
+
+
+            # Here we try to call the passed function. We return it after the logging try block.
+            try:
 
                 time_right_before_func_call = CURR_TIME_FUNC()
                 # WHERE THE FUNC HAPPENS!!!
@@ -1316,64 +1383,8 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None, as
                 func_duration = time_right_after_func_call - time_right_before_func_call
 
 
-
-
-
-
-
-
-                logger = DEFAULT_LOGGER
-
-                # This try is meant to not crash the code in production.
-                # When using it for development, I would rather have it crash.
-                # To do that, I would set let_logger_crash_program to True.
+                # Here we try to log the function call.
                 try:
-                    if passed_logger is None:
-
-                        # This tries to see it the logger was passed as an argument.
-                        first_args = next(iter(args), None)  # capture first arg to check for `self`
-                        logger_params = [  # does kwargs have any logger
-                            x
-                            for x in kwargs.values()
-                            if isinstance(x, logging.Logger) or isinstance(x, MyLogger)
-                        ] + [  # # does args have any logger
-                            x
-                            for x in args
-                            if isinstance(x, logging.Logger) or isinstance(x, MyLogger)
-                        ]
-
-
-                        # This tries to see if this is a method in a class that has a logger attribute.
-                        if hasattr(first_args, "__dict__"):  # is first argument `self`
-                            logger_params = logger_params + [
-                                x
-                                for x in first_args.__dict__.values()  # does class (dict) members have any logger
-                                if isinstance(x, logging.Logger)
-                                or isinstance(x, MyLogger)
-                            ]
-                        
-
-                        # Here we make our own logger if no logger was passed.
-                        # logger_params is a list of loggers.
-                        # If the function has a logger in its arguments, it will be used, because it is first in this list.
-                        # If not and the class has a logger, it will be used.
-                        # Otherwise logger_params is empty and BASIC_LOGGER is used.
-                        h_logger = next(iter(logger_params), DEFAULT_LOGGER)  # get the next/first/default logger
-                    
-                    else:
-                        h_logger = passed_logger  # logger is passed explicitly to the decorator
-
-
-                    # We allowed MyLogger() to be passed as a logger.
-                    # If it was, we need to get its actual logger here.
-                    if isinstance(h_logger, MyLogger):
-                        logger = h_logger.get_logger(func.__name__)
-                    else:
-                        logger = h_logger
-
-
-
-
 
                     # Now comes what we do with the logger before function call:
 
@@ -1421,20 +1432,20 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None, as
                                 assert param_type == type(arg_value), f"Type mismatch for parameter {param}. Expected {param_type}, got {type(arg_value)}"
                                 # raise TypeError(f"Type mismatch for parameter {param}. Expected {param_type}, got {type(arg_value)}")
 
+
+
+                    if LOG_TIME_AUTOLOG and time_log:
+                        last_time = CURR_TIME_FUNC()
+                        LAST_LOG_TIME = last_time
+                        LAST_AUTOLOG_TIME = last_time
+                        AUTOLOG_FUNC_TIMES[func_name] = last_time
+
+
                 # The except block for stuff with logger.
                 except Exception as e:
                     if let_logger_crash_program:
                         raise e
 
-
-            
-
-                if LOG_TIME_AUTOLOG and time_log:
-                    last_time = CURR_TIME_FUNC()
-                    LAST_LOG_TIME = last_time
-                    LAST_AUTOLOG_TIME = last_time
-                    AUTOLOG_FUNC_TIMES[func_name] = last_time
-                
 
                 
                 return result

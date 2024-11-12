@@ -161,7 +161,7 @@ You can disable both these behaviours by calling the decorator like so:
 
 
 ## LOG_LOCALS:
-{
+
 Add py_log.log_locals(MY_LOGGER) somewhere in the code.
 It will print all the local variables at that point (function scope variables).
 Possibly add this above every return.
@@ -169,14 +169,15 @@ These logs contain " @log_locals " in its printout.
 
 
 
-Object attribute logging:
+
+## OBJECT ATTRIBUTE LOGGING:
 
 You are debugging some numpy code. A local variable is a numpy array. It gets logged.
 You don't see anything from that log - it's just a cropped printout of the array.
 You don't know the shape, the mean, the std, the min, the max, the sum, ...
-We can fix that. 
+We can fix that.
 
-Default paramters of log_locals are:
+E.g. default paramters of log_locals are:
 py_log.log_locals(passed_logger=DEFAULT_LOGGER, list_with_limiting_number=[], check_attributes=True, attr_sets=["size"], added_attribute_names=[])
 The last three parameters work like so:
 if check_attributes=True, you can pass, for example: added_attribute_names=["shape", "mean"].
@@ -190,7 +191,9 @@ There are also two predefined attribute sets: "size" and "math".
 You can pass these set names in a list to attr_sets.
 By default, this is only ["size"], because math operations take longer to compute.
 
-}
+These three parameters can be used in .log, .log_locals, .log_stack, .manual_log.
+Everywhere they are check_attributes=True, attr_sets=["size"], added_attribute_names=[] by default.
+
 
 
 
@@ -254,14 +257,7 @@ These logs contain " @log_time " in its printout.
 
 
 Most useful way of logging time:
-if LOG_TIME_AUTOLOG == True, in autologging with .log() we log:
-- time of execution of the decorated function
-- time since last call of a decorated function with the same name as the current decorated function
-(in general this means time since this current function was last called - but if you e.g. have two
- decorated functions with the same name, e.g. in different files, then no)
-- time since last call of any function decorated with .log()
-- time since last logging of any time (including other loggings than .log())
-
+if LOG_TIME_AUTOLOG == True, in autologging with .log() we log the time of execution of the decorated function.
 In an individual call of .log() you can disable the time logging by setting time_log=False.
 
 

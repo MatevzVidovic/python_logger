@@ -173,7 +173,7 @@ You can disable both these behaviours by calling the decorator like so:
 
 
 LOG_LOCALS:
-{
+
 Add py_log.log_locals(MY_LOGGER) somewhere in the code.
 It will print all the local variables at that point (function scope variables).
 Possibly add this above every return.
@@ -181,14 +181,15 @@ These logs contain " @log_locals " in its printout.
 
 
 
-Object attribute logging:
+
+OBJECT ATTRIBUTE LOGGING:
 
 You are debugging some numpy code. A local variable is a numpy array. It gets logged.
 You don't see anything from that log - it's just a cropped printout of the array.
 You don't know the shape, the mean, the std, the min, the max, the sum, ...
-We can fix that. 
+We can fix that.
 
-Default paramters of log_locals are:
+E.g. default paramters of log_locals are:
 py_log.log_locals(passed_logger=DEFAULT_LOGGER, list_with_limiting_number=[], check_attributes=True, attr_sets=["size"], added_attribute_names=[])
 The last three parameters work like so:
 if check_attributes=True, you can pass, for example: added_attribute_names=["shape", "mean"].
@@ -202,7 +203,9 @@ There are also two predefined attribute sets: "size" and "math".
 You can pass these set names in a list to attr_sets.
 By default, this is only ["size"], because math operations take longer to compute.
 
-}
+These three parameters can be used in .log, .log_locals, .log_stack, .manual_log.
+Everywhere they are check_attributes=True, attr_sets=["size"], added_attribute_names=[] by default.
+
 
 
 
@@ -265,14 +268,7 @@ These logs contain " @log_time " in its printout.
 
 
 Most useful way of logging time:
-if LOG_TIME_AUTOLOG == True, in autologging with .log() we log:
-- time of execution of the decorated function
-- time since last call of a decorated function with the same name as the current decorated function
-(in general this means time since this current function was last called - but if you e.g. have two
- decorated functions with the same name, e.g. in different files, then no)
-- time since last call of any function decorated with .log()
-- time since last logging of any time (including other loggings than .log())
-
+if LOG_TIME_AUTOLOG == True, in autologging with .log() we log the time of execution of the decorated function.
 In an individual call of .log() you can disable the time logging by setting time_log=False.
 
 
@@ -821,8 +817,6 @@ LOG_TIME_AUTOLOG = True # Here it makes the most sense.
 # The duration information tells us the most in autolog.
 # Also, autologs don't have line information, important value information, ... So in autolog it's okay to clutter with time.
 
-LOG_TIME_ELSEWHERE = False
-
 # alternative is time.process_time(). It measures only CPU time, not wall-clock time - so it's not affected by time.sleep().
 CURR_TIME_FUNC = time.perf_counter
 LAST_LOG_TIME = CURR_TIME_FUNC()
@@ -957,6 +951,58 @@ def get_func_frame_info_dict(frame):
     
     return returning_dict
 
+
+
+
+
+def _get_list_of_reprs_from_dict_like_kwargs(kwargs_like_dict, check_attributes=True, attr_sets=["size"], added_attribute_names=[]):
+    
+
+    check_attrs = [name for name in added_attribute_names]
+    # if v has .shape, .size, .dtype, .__len__ or .shape(), .size(), .dtype(), .__len__(), we want to log that too.
+    if "size" in attr_sets:
+        check_attrs += ["shape", "size", "dtype", "__len__"]
+    if "math" in attr_sets:
+        check_attrs += ["mean", "std", "min", "max", "sum"]
+
+    local_vars_strs = []
+
+    for k, v in kwargs_like_dict.items():
+        curr_str = f"{k} ({type(v)}) "
+
+        if check_attributes:
+            for attr_name in check_attrs:
+                try:
+                    curr_attr = getattr(v, attr_name, "No such attribute.")
+
+                    if curr_attr == "No such attribute.":
+                        continue
+                    
+                    # With getattr you get the method or attribute of the object with that name.
+                    # If the object has both a method and an attribute with the same name,
+                    # the method is returned. There is a workaround with example_obj.__dict__['shape']
+                    # to get the attribute instead of the method. But if it has both we will just stick with
+                    # only getting the method for now.
+
+                    if callable(curr_attr):
+                        curr_str += f"[{attr_name}(): {curr_attr()}] "
+                    else:
+                        curr_str += f"[{attr_name}: {curr_attr}] "
+
+                except Exception as e:
+                    curr_str += f"(logger error in trying to get {attr_name}. Error: {e}) "
+
+        try:
+            curr_str += f"= {v!r}"
+        except:
+            curr_str += f"= (logger error in trying to get the representation of the object.)"
+
+        
+        local_vars_strs.append(curr_str)
+    
+    return local_vars_strs
+
+
 def info_dict_to_string(info_dict, have_local_vars=True, check_attributes=True, attr_sets=["size"], added_attribute_names=[]):
 
     filename = info_dict["filename"]
@@ -971,46 +1017,8 @@ def info_dict_to_string(info_dict, have_local_vars=True, check_attributes=True, 
     if have_local_vars:
         logging_string += "Local variables: "
 
-
-
-        check_attrs = [name for name in added_attribute_names]
-        # if v has .shape, .size, .dtype, .__len__ or .shape(), .size(), .dtype(), .__len__(), we want to log that too.
-        if "size" in attr_sets:
-            check_attrs += ["shape", "size", "dtype", "__len__"]
-        if "math" in attr_sets:
-            check_attrs += ["mean", "std", "min", "max", "sum"]
-
-
-        local_vars_strs = []
-        for k, v in local_vars.items():
-            curr_str = f"{k} ({type(v)}) "
-
-            if check_attributes:
-                for attr_name in check_attrs:
-                    try:
-                        curr_attr = getattr(v, attr_name, "No such attribute.")
-
-                        if curr_attr == "No such attribute.":
-                            continue
-                        
-                        # With getattr you get the method or attribute of the object with that name.
-                        # If the object has both a method and an attribute with the same name,
-                        # the method is returned. There is a workaround with example_obj.__dict__['shape']
-                        # to get the attribute instead of the method. But if it has both we will just stick with
-                        # only getting the method for now.
-
-                        if callable(curr_attr):
-                            curr_str += f"[{attr_name}(): {curr_attr()}] "
-                        else:
-                            curr_str += f"[{attr_name}: {curr_attr}] "
-
-                    except Exception as e:
-                        curr_str += f"(logger error in trying to get {attr_name}. Error: {e}) "
-
-            
-            curr_str += f"= {v!r}"
-            local_vars_strs.append(curr_str)
-
+        local_vars_strs = _get_list_of_reprs_from_dict_like_kwargs(local_vars, check_attributes=check_attributes, attr_sets=attr_sets, added_attribute_names=added_attribute_names)
+        
         # local_vars_strs = [f"{k}={v!r}" for k, v in local_vars.items()]
 
         marked = mark_list_of_strings(local_vars_strs, start_marker="[START_VAR]", end_marker="[END_VAR]")
@@ -1020,9 +1028,8 @@ def info_dict_to_string(info_dict, have_local_vars=True, check_attributes=True, 
 
 
 
-LAST_LOG_LOCALS_TIME = CURR_TIME_FUNC()
 
-def log_locals(passed_logger=DEFAULT_LOGGER, list_with_limiting_number=[], check_attributes=True, attr_sets=["size"], added_attribute_names=[], time_log=True):
+def log_locals(passed_logger=DEFAULT_LOGGER, list_with_limiting_number=[], check_attributes=True, attr_sets=["size"], added_attribute_names=[]):
     """
     Log all local variables in the current frame.
     
@@ -1031,16 +1038,6 @@ def log_locals(passed_logger=DEFAULT_LOGGER, list_with_limiting_number=[], check
     logging_string = " @log_locals \n"
 
     
-    if LOG_TIME_ELSEWHERE and time_log:
-        curr_time = CURR_TIME_FUNC()
-        global LAST_LOG_TIME
-        global LAST_LOG_LOCALS_TIME
-        since_last_log = curr_time - LAST_LOG_TIME
-        since_last_log_locals_call = curr_time - LAST_LOG_LOCALS_TIME
-
-        logging_string += f"Time since last log_locals call: {since_last_log_locals_call:.8f} s\n"
-        logging_string += f"Time since last log: {since_last_log:.8f} s\n"
-
 
     if len(list_with_limiting_number) == 1: 
         if list_with_limiting_number[0] <= 0:
@@ -1057,37 +1054,20 @@ def log_locals(passed_logger=DEFAULT_LOGGER, list_with_limiting_number=[], check
     info_string = info_dict_to_string(frame_info, check_attributes=check_attributes, attr_sets=attr_sets, added_attribute_names=added_attribute_names)
 
 
-    
     logging_string += info_string
     passed_logger.debug(logging_string)
 
-    if LOG_TIME_ELSEWHERE and time_log:
-        last_time = CURR_TIME_FUNC()
-        LAST_LOG_TIME = last_time
-        LAST_LOG_LOCALS_TIME = last_time
 
 
 
 
-LAST_LOG_STACK_TIME = CURR_TIME_FUNC()
 
-def log_stack(passed_logger=DEFAULT_LOGGER, check_attributes=True, attr_sets=["size"], added_attribute_names=[], time_log=True):
+def log_stack(passed_logger=DEFAULT_LOGGER, check_attributes=True, attr_sets=["size"], added_attribute_names=[]):
     """
     Log the stack trace.
     """
 
     logging_string = " @log_stack \n"
-
-    
-    if LOG_TIME_ELSEWHERE and time_log:
-        curr_time = CURR_TIME_FUNC()
-        global LAST_LOG_TIME
-        global LAST_LOG_STACK_TIME
-        since_last_log = curr_time - LAST_LOG_TIME
-        since_last_log_stack_call = curr_time - LAST_LOG_STACK_TIME
-
-        logging_string += f"Time since last log_stack call: {since_last_log_stack_call:.8f} s\n"
-        logging_string += f"Time since last log: {since_last_log:.8f} s\n"
 
     all_info_dicts = []
 
@@ -1107,29 +1087,16 @@ def log_stack(passed_logger=DEFAULT_LOGGER, check_attributes=True, attr_sets=["s
     # Log each local variable
     passed_logger.debug(logging_string)
 
-    if LOG_TIME_ELSEWHERE and time_log:
-        last_time = CURR_TIME_FUNC()
-        LAST_LOG_TIME = last_time
-        LAST_LOG_STACK_TIME = last_time
 
     return all_info_dicts
 
 
-LAST_MANUAL_LOG_TIME = CURR_TIME_FUNC()
 
-def manual_log(passed_logger=DEFAULT_LOGGER, *args, **kwargs):
+def manual_log(passed_logger=DEFAULT_LOGGER, check_attributes=True, attr_sets=["size", "math"], added_attribute_names=[], *args, **kwargs):
     
     logging_string = " @manual_log \n"
 
     
-    if LOG_TIME_ELSEWHERE:
-        curr_time = CURR_TIME_FUNC()
-        global LAST_LOG_TIME
-        global LAST_MANUAL_LOG_TIME
-        since_last_log = curr_time - LAST_LOG_TIME
-        since_last_manual_log_call = curr_time - LAST_MANUAL_LOG_TIME
-        logging_string += f"Time since last manual log call: {since_last_manual_log_call:.8f} s\n"
-        logging_string += f"Time since last log: {since_last_log:.8f} s\n"
 
     
     frame = get_frame_up_the_stack(2)
@@ -1142,19 +1109,19 @@ def manual_log(passed_logger=DEFAULT_LOGGER, *args, **kwargs):
     logging_string += info_string
 
     
-    args_strs = [f"{arg!r}" for arg in args]
-    kwargs_strs = [f"{k}={v!r}" for k, v in kwargs.items()]
+    args_dict = {}
+    for ix, arg in enumerate(args):
+        args_dict[f"arg_{ix}"] = arg
+
+    args_strs = _get_list_of_reprs_from_dict_like_kwargs(args_dict, check_attributes=check_attributes, attr_sets=attr_sets, added_attribute_names=added_attribute_names)
+    kwargs_strs = _get_list_of_reprs_from_dict_like_kwargs(kwargs, check_attributes=check_attributes, attr_sets=attr_sets, added_attribute_names=added_attribute_names)
+
     all_args = args_strs + kwargs_strs
     marked = mark_list_of_strings(all_args, start_marker="[START_VAR]", end_marker="[END_VAR]")
     
     logging_string += " \n " + ", \n".join(marked)
 
     passed_logger.debug(logging_string)
-
-    if LOG_TIME_ELSEWHERE:
-        last_time = CURR_TIME_FUNC()
-        LAST_LOG_TIME = last_time
-        LAST_MANUAL_LOG_TIME = last_time
 
 
 
@@ -1278,10 +1245,8 @@ class MyLogger:
 
 
 
-LAST_AUTOLOG_TIME = CURR_TIME_FUNC()
-AUTOLOG_FUNC_TIMES = {}
 
-def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None, assert_types=True, let_logger_crash_program=True, log_stack_on_exception=False, time_log=True):
+def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None, assert_types=True, let_logger_crash_program=True, log_stack_on_exception=False, time_log=True, check_attributes=True, attr_sets=["size"], added_attribute_names=[]):
 
         
 
@@ -1298,25 +1263,7 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None, as
 
             try:
 
-                # ----------------- SETTING UP TIME -----------------
-
-                func_name = func.__name__
-
-                    
-                if LOG_TIME_AUTOLOG and time_log:
-                    global LAST_LOG_TIME
-                    global LAST_AUTOLOG_TIME
-                    global AUTOLOG_FUNC_TIMES
-                    curr_time = CURR_TIME_FUNC()
-                    since_last_log = curr_time - LAST_LOG_TIME
-                    since_last_autolog_call = curr_time - LAST_AUTOLOG_TIME
-                    if func_name in AUTOLOG_FUNC_TIMES:
-                        since_last_func_call = curr_time - AUTOLOG_FUNC_TIMES[func_name]
-                        since_last_func_call_str = f"Time since last autolog call for fn with name '{func_name}': {since_last_func_call:.8f} s\n"
-                    else:
-                        since_last_func_call_str = f"First autolog call for fn with name '{func_name}'. Curr time: {curr_time}\n"
                 
-
 
                 # ----------------- SETTING UP LOGGER -----------------
                 
@@ -1371,10 +1318,11 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None, as
 
 
 
-
+            # ----------------- CALLING THE FUNCTION -----------------
 
             # Here we try to call the passed function. We return it after the logging try block.
             try:
+
 
                 time_right_before_func_call = CURR_TIME_FUNC()
                 # WHERE THE FUNC HAPPENS!!!
@@ -1382,6 +1330,8 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None, as
                 time_right_after_func_call = CURR_TIME_FUNC()
                 func_duration = time_right_after_func_call - time_right_before_func_call
 
+
+                # ----------------- LOGGING -----------------
 
                 # Here we try to log the function call.
                 try:
@@ -1393,16 +1343,20 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None, as
                     bound_args.apply_defaults()
 
                     # Log function call
-                    printable_args = [f"{k}={v!r}" for k, v in bound_args.arguments.items()]
+                    func_name = func.__name__
+
+                    args_dict = {}
+                    for key, arg in bound_args.arguments.items():
+                        args_dict[key] = arg
+                        
+                    printable_args = _get_list_of_reprs_from_dict_like_kwargs(args_dict, check_attributes=check_attributes, attr_sets=attr_sets, added_attribute_names=added_attribute_names)
                     marked_printable_args = mark_list_of_strings(printable_args, start_marker="[START_VAR]", end_marker="[END_VAR]")
+                    
                     logging_string = " @autolog \n"
                     logging_string += f" Function {func_name} \n"
                     
                     if LOG_TIME_AUTOLOG and time_log:
                         logging_string += f"Function duration: {func_duration:.8f} s\n"
-                        logging_string += since_last_func_call_str
-                        logging_string += f"Time since last autolog call: {since_last_autolog_call:.8f} s\n"
-                        logging_string += f"Time since last log: {since_last_log:.8f} s\n"
                     
                     logging_string += "Called with arguments: "
                     logging_string += " \n " + ", \n".join(marked_printable_args)
@@ -1433,12 +1387,6 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None, as
                                 # raise TypeError(f"Type mismatch for parameter {param}. Expected {param_type}, got {type(arg_value)}")
 
 
-
-                    if LOG_TIME_AUTOLOG and time_log:
-                        last_time = CURR_TIME_FUNC()
-                        LAST_LOG_TIME = last_time
-                        LAST_AUTOLOG_TIME = last_time
-                        AUTOLOG_FUNC_TIMES[func_name] = last_time
 
 
                 # The except block for stuff with logger.

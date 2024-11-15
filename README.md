@@ -148,11 +148,37 @@ These automatic logs all contain " @autolog " in their printout.
 This logs the function name and its arguments when the function is called.
 It checks if the type hints match the passed parameters.
 
+!!! Important !!!
+You have your module (file) ConvResourceCalc, which has a class ConvResourceCalc.
+You do:
+import ConvResourceCalc
+in some file. Well, then when you typehint for ConvResourceCalc, you are typehinting for the module, not the class.
+And you will get this error:
+if param_type != inspect.Parameter.empty and not isinstance(arg_value, param_type):
+TypeError: isinstance() arg 2 must be a type, a tuple of types, or a union
+So instead, you have to do:
+from ConvResourceCalc import ConvResourceCalc
+
 If the types don't match (assertion error), or some other exception happens in logger (possibly due to a bug),
 it will crash the code.
 
 You can disable both these behaviours by calling the decorator like so:
 @py_log.log(passed_logger=MY_LOGGER, assert_types=False, let_logger_crash_program=False)
+
+We also log the time of execution of the function.
+However, to time the function, we have to run it first. But we want @autolog to happen right before the
+function happens - so we can't put the time in the same log.
+For this reason, we created @time_autolog logs.
+These logs contain " @time_autolog " in its printout.
+These happen right after the function finished.
+
+In a way this is nice, because then in your logs you have a nice encapsulation of the function - the start and the end logs are clear.
+It is however less clear for functions that call themselves, because in the logs between the main @autolog and @time_autolog, we have the same encapsulation.
+For this reason we add a random number to both the @autolog and @time_autolog logs, so we can actually know which @time_autolog belongs to which @autolog.
+
+If these logs bug you, just regex them away in the log viewer.
+
+See more in TIMING YOUR CODE.
 
 
 
@@ -307,6 +333,34 @@ All the conditions must hold for a log to be kept in view.
 
 And you can use actual regex in the input field, not just basic words, 
 although mostly you just use basic words to filter to what you are interested in.
+
+
+
+
+
+# USING SERVER_PY:
+
+If you just do:
+python3 server.py
+You can view the latest log file that was created.
+You can also manually pass the name of the logfile in /logs/ to view that log file.
+
+You can do:
+python3 server.py log_57-44-22_2024-11-15.log
+or
+python3 server.py logs/log_57-44-22_2024-11-15.log
+
+I suggest the second way, so that you can use autocomplete.
+
+If you are choosing the logs manually, I suggest that when it seems appropriate,
+you delete the folder /logs.
+This is perfectly fine, it will be created anew.
+And you will have less clutter and will be able to find the log you are interested in more easily.
+
+Tip - run:
+python3 server.py logs/log_
+It won't work, but then you can just arrow-up, and add the number and tab.
+
 
 
 

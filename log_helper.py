@@ -6,6 +6,8 @@ import logging
 import inspect
 from typing import Any, Callable, TypeVar, Union
 
+import random
+
 import datetime
 import os
 
@@ -160,11 +162,37 @@ These automatic logs all contain " @autolog " in their printout.
 This logs the function name and its arguments when the function is called.
 It checks if the type hints match the passed parameters.
 
+!!! Important !!!
+You have your module (file) ConvResourceCalc, which has a class ConvResourceCalc.
+You do:
+import ConvResourceCalc
+in some file. Well, then when you typehint for ConvResourceCalc, you are typehinting for the module, not the class.
+And you will get this error:
+if param_type != inspect.Parameter.empty and not isinstance(arg_value, param_type):
+TypeError: isinstance() arg 2 must be a type, a tuple of types, or a union
+So instead, you have to do:
+from ConvResourceCalc import ConvResourceCalc
+
 If the types don't match (assertion error), or some other exception happens in logger (possibly due to a bug),
 it will crash the code.
 
 You can disable both these behaviours by calling the decorator like so:
 @py_log.log(passed_logger=MY_LOGGER, assert_types=False, let_logger_crash_program=False)
+
+We also log the time of execution of the function.
+However, to time the function, we have to run it first. But we want @autolog to happen right before the
+function happens - so we can't put the time in the same log.
+For this reason, we created @time_autolog logs.
+These logs contain " @time_autolog " in its printout.
+These happen right after the function finished.
+
+In a way this is nice, because then in your logs you have a nice encapsulation of the function - the start and the end logs are clear.
+It is however less clear for functions that call themselves, because in the logs between the main @autolog and @time_autolog, we have the same encapsulation.
+For this reason we add a random number to both the @autolog and @time_autolog logs, so we can actually know which @time_autolog belongs to which @autolog.
+
+If these logs bug you, just regex them away in the log viewer.
+
+See more in TIMING YOUR CODE.
 
 
 
@@ -319,6 +347,31 @@ All the conditions must hold for a log to be kept in view.
 And you can use actual regex in the input field, not just basic words, 
 although mostly you just use basic words to filter to what you are interested in.
 
+
+
+
+USING SERVER_PY:
+
+If you just do:
+python3 server.py
+You can view the latest log file that was created.
+You can also manually pass the name of the logfile in /logs/ to view that log file.
+
+You can do:
+python3 server.py log_57-44-22_2024-11-15.log
+or
+python3 server.py logs/log_57-44-22_2024-11-15.log
+
+I suggest the second way, so that you can use autocomplete.
+
+If you are choosing the logs manually, I suggest that when it seems appropriate,
+you delete the folder /logs.
+This is perfectly fine, it will be created anew.
+And you will have less clutter and will be able to find the log you are interested in more easily.
+
+Tip - run:
+python3 server.py logs/log_
+It won't work, but then you can just arrow-up, and add the number and tab.
 
 
 """
@@ -1261,6 +1314,8 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None, as
             # Also, if we fail here, the try block that does the logging will fail too.
             # But the function result will still be returned correctly.
 
+            function_call_id = random.randint(0, 1e9)
+
             try:
 
                 
@@ -1312,9 +1367,66 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None, as
                 else:
                     logger = h_logger
 
+
+                
+
+                # ----------------- LOGGING -----------------
+
+                # Here we try to log the function call.
+                # Now comes what we do with the logger before function call:
+
+                signature = inspect.signature(func)
+                bound_args = signature.bind(*args, **kwargs)
+                bound_args.apply_defaults()
+
+                # Log function call
+                func_name = func.__name__
+
+                args_dict = {}
+                for key, arg in bound_args.arguments.items():
+                    args_dict[key] = arg
+                    
+                printable_args = _get_list_of_reprs_from_dict_like_kwargs(args_dict, check_attributes=check_attributes, attr_sets=attr_sets, added_attribute_names=added_attribute_names)
+                marked_printable_args = mark_list_of_strings(printable_args, start_marker="[START_VAR]", end_marker="[END_VAR]")
+                
+                logging_string = " @autolog \n"
+                logging_string += f" Function {func_name} \n"
+                logging_string += f"Call id: {function_call_id} \n"
+                
+                logging_string += "Called with arguments: "
+                logging_string += " \n " + ", \n".join(marked_printable_args)
+                logger.debug(logging_string)
+
+                # Initial weird way
+                """
+                print(signature)
+                print(args, kwargs)
+                print(bound_args.arguments)
+                
+                # Log function call
+                args_repr = [repr(arg) for arg in args]
+                kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
+                logger.debug(f"Function {func.__name__} called with arguments: {', '.join(args_repr + kwargs_repr)}")
+                """
+                
+
+                # Type checking
+                for param, arg_value in bound_args.arguments.items():
+                    param_type = signature.parameters[param].annotation
+                    if param_type != inspect.Parameter.empty and not isinstance(arg_value, param_type):
+                        logger.critical(f""" @autolog 
+                                        Type mismatch for parameter '{param}'. 
+                                        Expected {param_type}, got {type(arg_value)}""")
+                        if assert_types:
+                            assert param_type == type(arg_value), f"Type mismatch for parameter {param}. Expected {param_type}, got {type(arg_value)}"
+                            # raise TypeError(f"Type mismatch for parameter {param}. Expected {param_type}, got {type(arg_value)}")
+
+
+
             except Exception as e:
                 if let_logger_crash_program:
                     raise e
+                
 
 
 
@@ -1331,69 +1443,14 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None, as
                 func_duration = time_right_after_func_call - time_right_before_func_call
 
 
-                # ----------------- LOGGING -----------------
+                
+                if LOG_TIME_AUTOLOG and time_log:
 
-                # Here we try to log the function call.
-                try:
-
-                    # Now comes what we do with the logger before function call:
-
-                    signature = inspect.signature(func)
-                    bound_args = signature.bind(*args, **kwargs)
-                    bound_args.apply_defaults()
-
-                    # Log function call
-                    func_name = func.__name__
-
-                    args_dict = {}
-                    for key, arg in bound_args.arguments.items():
-                        args_dict[key] = arg
-                        
-                    printable_args = _get_list_of_reprs_from_dict_like_kwargs(args_dict, check_attributes=check_attributes, attr_sets=attr_sets, added_attribute_names=added_attribute_names)
-                    marked_printable_args = mark_list_of_strings(printable_args, start_marker="[START_VAR]", end_marker="[END_VAR]")
-                    
-                    logging_string = " @autolog \n"
-                    logging_string += f" Function {func_name} \n"
-                    
-                    if LOG_TIME_AUTOLOG and time_log:
-                        logging_string += f"Function duration: {func_duration:.8f} s\n"
-                    
-                    logging_string += "Called with arguments: "
-                    logging_string += " \n " + ", \n".join(marked_printable_args)
+                    logging_string = " @time_autolog \n"
+                    logging_string += f"Function {func_name} \n"
+                    logging_string += f"Call id: {function_call_id} \n"
+                    logging_string += f"Function duration: {func_duration:.8f} s\n"
                     logger.debug(logging_string)
-
-                    # Initial weird way
-                    """
-                    print(signature)
-                    print(args, kwargs)
-                    print(bound_args.arguments)
-                    
-                    # Log function call
-                    args_repr = [repr(arg) for arg in args]
-                    kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
-                    logger.debug(f"Function {func.__name__} called with arguments: {', '.join(args_repr + kwargs_repr)}")
-                    """
-                    
-
-                    # Type checking
-                    for param, arg_value in bound_args.arguments.items():
-                        param_type = signature.parameters[param].annotation
-                        if param_type != inspect.Parameter.empty and not isinstance(arg_value, param_type):
-                            logger.critical(f""" @autolog 
-                                            Type mismatch for parameter '{param}'. 
-                                            Expected {param_type}, got {type(arg_value)}""")
-                            if assert_types:
-                                assert param_type == type(arg_value), f"Type mismatch for parameter {param}. Expected {param_type}, got {type(arg_value)}"
-                                # raise TypeError(f"Type mismatch for parameter {param}. Expected {param_type}, got {type(arg_value)}")
-
-
-
-
-                # The except block for stuff with logger.
-                except Exception as e:
-                    if let_logger_crash_program:
-                        raise e
-
 
                 
                 return result

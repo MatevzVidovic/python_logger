@@ -257,6 +257,10 @@ if __name__ == '__main__':
 
     if args.log_file != None:
         log_filename = args.log_file
+
+        # split log_filename by '/' and get the last part, so you can pass logs/log_....txt, and it works with tab autovcomplete in the terminal.
+        log_filename = log_filename.split('/')[-1]
+        
         LOG_FILE_PATH = os.path.join(logs_folder, log_filename)
         parse_log_file()
 

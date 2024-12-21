@@ -99,23 +99,26 @@ In your main file, above all imports at the top of the file, add this code:
 code from importing your other files is run. And so all the loggings 
 are actually written to the output file.)
 {
-import os
 import logging
-import python_logger.log_helper as py_log
+import python_logger.log_helper_off as py_log
+import python_logger.log_helper as py_log_always_on
 
 MY_LOGGER = logging.getLogger("prototip") # or any string. Mind this: same string, same logger.
 MY_LOGGER.setLevel(logging.DEBUG)
 
-python_logger_path = os.path.join(os.path.dirname(__file__), 'python_logger')
-handlers = py_log.file_handler_setup(MY_LOGGER, python_logger_path, add_stdout_stream=False)
+
+import os.path as osp
+python_logger_path = osp.join(osp.dirname(__file__), 'python_logger')
+handlers = py_log_always_on.file_handler_setup(MY_LOGGER, python_logger_path)
 }
 
 In all the other files you are importing, add this code without the file handler part:
 {
 import logging
-import python_logger.log_helper as py_log
+import python_logger.log_helper_off as py_log
+import python_logger.log_helper as py_log_always_on
 
-MY_LOGGER = logging.getLogger("prototip") # or any string. Mind this: same string, same logger.
+MY_LOGGER = logging.getLogger("prototip")
 MY_LOGGER.setLevel(logging.DEBUG)
 }
 (In theory adding more file handlers would lead to logs being duplicated.
@@ -911,7 +914,7 @@ class FileAndStreamHandlers:
 # If so, change the if condition to >= k.)
 NUM_OF_FILE_HANDLER_SETUP_USES = 0
 
-def file_handler_setup(logger, path_to_python_logger_folder, add_stdout_stream: bool = False):
+def file_handler_setup(logger, path_to_python_logger_folder, add_stdout_stream: bool = False, print_log_file_name: bool = True):
     
     global NUM_OF_FILE_HANDLER_SETUP_USES
     if NUM_OF_FILE_HANDLER_SETUP_USES >= 1:
@@ -923,9 +926,14 @@ def file_handler_setup(logger, path_to_python_logger_folder, add_stdout_stream: 
 
     # Create a file handler
     current_time = datetime.datetime.now()
-    log_file_name = f"log_{current_time.strftime('%S-%M-%H_%Y-%m-%d')}.log"
+    log_file_name = f"""log_{current_time.strftime('%d_%H-%M-%S_%m-%Y')}.log
+    Add print_log_file_name=False to file_handler_setup() to disable this printout."""
     file_handler = logging.FileHandler(os.path.join(logs_folder, log_file_name))
     file_handler.setLevel(logging.DEBUG)
+    
+    # This is nice to have, so you can easily find the log file that corresponds to some out.txt that isn't the latest one.
+    if print_log_file_name:
+        print(f"Log file name: {log_file_name}")
 
     # Enables easier use of log_server()
     

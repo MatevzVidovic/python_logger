@@ -4,6 +4,7 @@ import functools
 import logging
 
 import inspect
+import logging.handlers
 from typing import Any, Callable, TypeVar, Union
 
 import random
@@ -24,7 +25,7 @@ import time
 
 This code helps you log your code with minimal effort.
 Above a function definition, you just add:
-@py_log.log(passed_logger=MY_LOGGER)
+@py_log.autolog(passed_logger=MY_LOGGER)
 def foo(a: int, b, c: float): ...
 This does:
 - automatic logging that the function was called and the arguments it was called with
@@ -34,7 +35,7 @@ Also:
 - logging of local variables (all vars defined in this func) at any point in the code (just write py_log.log_locals(MY_LOGGER))
 - logging of all local variables in the entire stack trace (py_log.log_stack(MY_LOGGER))
 - logging of time since the last log_time call with a certain immutable_id (py_log.log_time(MY_LOGGER, immutable_id="some string you like"))
-- logging of whatever you want (py_log.manual_log(MY_LOGGER, "rocni string", vrba, vrbica_moja=vrba))
+- logging of whatever you want (py_log.log_manual(MY_LOGGER, "rocni string", vrba, vrbica_moja=vrba))
 - and some other stuff too.
 And most importantly:
 - you can view all these logs in a nice frontend that is easy to filter.
@@ -108,9 +109,20 @@ MY_LOGGER.setLevel(logging.DEBUG)
 
 
 import os.path as osp
+py_log_always_on.limitations_setup(max_file_size_bytes=100 * 1024 * 1024)
 python_logger_path = osp.join(osp.dirname(__file__), 'python_logger')
 handlers = py_log_always_on.file_handler_setup(MY_LOGGER, python_logger_path)
 }
+(Quickly on the limitations_setup: 
+max_file_size_bytes is the maximum size of the log file in bytes.
+After it is reached, the file is backed up and a new log file starts to be written to.
+Param backup_num is 1 by default, so only the latest backup is kept. (works like RotatintFileHandler in logging module).
+But we made it so that the first backup we make is always saved (it's the one where the program started and probably contains very important logs).
+We also have param max_chars_in_one_var if you want to slice long logs which are usually pointless anyways.
+And we also have var_blacklist - a list of variable names that will not be logged. This is useful to prevent annoying long logs that keep being logged but aren't useful at all.
+
+
+
 
 In all the other files you are importing, add this code without the file handler part:
 {
@@ -155,8 +167,8 @@ Especially go look for the use of what log_stack returns. It comes in really han
 
 AUTOLOG:
 
-# Add @py_log.log(passed_logger=MY_LOGGER) above functions you want to log.
-@py_log.log(passed_logger=MY_LOGGER)
+# Add @py_log.autolog(passed_logger=MY_LOGGER) above functions you want to log.
+@py_log.autolog(passed_logger=MY_LOGGER)
 def foo(a, b, c):
     pass
 
@@ -180,7 +192,7 @@ If the types don't match (assertion error), or some other exception happens in l
 it will crash the code.
 
 You can disable both these behaviours by calling the decorator like so:
-@py_log.log(passed_logger=MY_LOGGER, assert_types=False, let_logger_crash_program=False)
+@py_log.autolog(passed_logger=MY_LOGGER, assert_types=False, let_logger_crash_program=False)
 
 We also log the time of execution of the function.
 However, to time the function, we have to run it first. But we want @autolog to happen right before the
@@ -188,6 +200,11 @@ function happens - so we can't put the time in the same log.
 For this reason, we created @time_autolog logs.
 These logs contain " @time_autolog " in its printout.
 These happen right after the function finished.
+
+We also want to log what the function returned. We can't put that in the @autolog log, because the function hasn't run yet.
+(And if we were to wait with the autolog until we get the retur, then the autologs wouldn't be in the order of callings of fns, 
+but in the order of returns of fns, which is confusing.)
+So we put it into the @time_autolog log, which is another nice thing about it.
 
 In a way this is nice, because then in your logs you have a nice encapsulation of the function - the start and the end logs are clear.
 It is however less clear for functions that call themselves, because in the logs between the main @autolog and @time_autolog, we have the same encapsulation.
@@ -229,22 +246,37 @@ E.g. for shape, that means either .shape() or .shape.
 If it has .shape(), we will log its result. If it doesn't, but it has .shape, we will log that.
 
 There are also two predefined attribute sets: "size" and "math".
-"size" checks for shape, size, dtype, __len__.
-"math" checks for mean, std, min, max, sum.
+"size" checks for shape, size, dtype, __len__. O(1) operations.
+"math" checks for mean, std, min, max, sum. O(n) operations.
+
+We also have "hist" as an option in attr_sets. (O(n) operation)
+(This is not really an attribute set, but it fits here nicely enough, and it's really useful.)
+If the val is a np.array or torch.Tensor, we make a count of unique values.
+If there are 10 or less unique values, we log them with their counts.
+If there are more, we log the min and its count, max and its count, 
+and the counts in 10 equal intervals between min and max (the histogram).
+
 You can pass these set names in a list to attr_sets.
 By default, this is only ["size"], because math operations take longer to compute.
 
-These three parameters can be used in .log, .log_locals, .log_stack, .manual_log.
+These three parameters can be used in .log, .log_locals, .log_stack.
 Everywhere they are check_attributes=True, attr_sets=["size"], added_attribute_names=[] by default.
 
+They also apply in log_manual. But there, they can't be regular parameters, 
+because log_manual wants all the arguments passed as *args and **kwargs.
+So to set them, you have to pass them as kwargs:
+py_log.log_manual(MY_LOGGER, "rocni string", vrba, vrbica_moja=vrba, check_attributes=True, attr_sets=["size"], added_attribute_names=[])
+In log_manual, the default values are:
+check_attributes=True, attr_sets=attr_sets=["size", "math", "hist"], added_attribute_names=[].
+Because manual logs don't happen much and it sort of makes sense to give you all the info you can get by default.
 
 
 
-MANUAL_LOG:
+LOG_MANUAL:
 
-Use py_log.manual_log(MY_LOGGER, *args, **kwargs) to log whatever you want.
+Use py_log.log_manual(MY_LOGGER, *args, **kwargs) to log whatever you want.
 You just give anything as arguments and keyword arguments and it will log them.
-These logs contain " @manual_log " in its printout.
+These logs contain " @log_manual " in its printout.
 
 I suggest using kwargs for better readability - manual log will log 
 what keyword you used for the argument, so you can easily be sure what is what in the log.
@@ -253,7 +285,7 @@ Possibly use your own @something_something as arguments in your manual logs.
 This will allow you to use the regex aspect of the log viewer to filter out only certain manual logs.
 
 Example:
-py_log.manual_log(MY_LOGGER, "rocni string", vrba, vrbica_moja=vrba)
+py_log.log_manual(MY_LOGGER, "rocni string", vrba, vrbica_moja=vrba)
 (vrba was a variable in that scope)
 
 
@@ -299,8 +331,8 @@ These logs contain " @log_time " in its printout.
 
 
 Most useful way of logging time:
-if LOG_TIME_AUTOLOG == True, in autologging with .log() we log the time of execution of the decorated function.
-In an individual call of .log() you can disable the time logging by setting time_log=False.
+if LOG_TIME_AUTOLOG == True, in autologging with .autolog() we log the time of execution of the decorated function.
+In an individual call of .autolog() you can disable the time logging by setting time_log=False.
 
 
 
@@ -315,9 +347,9 @@ to add the loggings to all your functions.
 {
 To do this easily in VS code, use regex:
 
-^(?!.*@log\n)( *)def
+^(?!.*@autolog\n)( *)def
 Find: ^( *)def
-Replace: $1@py_log.log(passed_logger=MY_LOGGER)\n$1def
+Replace: $1@py_log.autolog(passed_logger=MY_LOGGER)\n$1def
 
 and
 
@@ -384,6 +416,105 @@ It won't work, but then you can just arrow-up, and add the number and tab.
 # Expanded main info (after you have used the code a bit, I suggest you read this):
 """
 
+AUTOLOG WITH OTHER DECORATORS:
+I suspect always soing the autolog decorator last works.
+In this case, doing the @staticmethod after .autolog() caused an error:
+@staticmethod
+@py_log.autolog(passed_logger=MY_LOGGER)
+def fn():
+    pass
+
+BETTER CODE SETUP:
+
+Sometimes you want to run the program for a short small problem, and you want all the available logging there.
+Sometimes you don't want certain clutter in your logs, so you want to disable some files from logging.
+Sometimes you want to run the program for a long time, and the log files would be way too huge.
+
+Either way, you keep going around your files and changing 
+import python_logger.log_helper as py_log to import python_logger.log_helper_off as py_log
+and vice versa. And it's annoying.
+So we make a txt file: active_logging_config.txt like:
+logging_config.yaml
+And you make logging_config.yaml like:
+unet_original_main.py : True
+training_support.py : True
+training_wrapper.py : True
+model_wrapper.py : True
+pruner.py : True
+
+And in this way you specify which files should log and which shouldn't. And you can have
+logging_config.yaml, 1_logging_config.yaml, 2_logging_config.yaml, ... and just change the active_logging_config.txt
+
+
+Main file:
+{
+
+import logging
+import yaml
+import os.path as osp
+import python_logger.log_helper as py_log_always_on
+
+with open("active_logging_config.txt", 'r') as f:
+    yaml_path = f.read()
+
+log_config_path = osp.join(osp.dirname(__file__), yaml_path)
+do_log = False
+if osp.exists(yaml_path):
+    with open(yaml_path, 'r') as stream:
+        config = yaml.safe_load(stream)
+        file_log_setting = config.get(osp.basename(__file__), False)
+        if file_log_setting:
+            do_log = True
+
+print(f"{osp.basename(__file__)} do_log: {do_log}")
+if do_log:
+    import python_logger.log_helper as py_log
+else:
+    import python_logger.log_helper_off as py_log
+
+MY_LOGGER = logging.getLogger("prototip") # or any string. Mind this: same string, same logger.
+MY_LOGGER.setLevel(logging.DEBUG)
+
+python_logger_path = osp.join(osp.dirname(__file__), 'python_logger')
+py_log_always_on.limitations_setup(max_file_size_bytes=24 * 1024)
+handlers = py_log_always_on.file_handler_setup(MY_LOGGER, python_logger_path)
+
+}
+
+Other files: (just last three lines not used)
+{
+
+import logging
+import yaml
+import os.path as osp
+import python_logger.log_helper as py_log_always_on
+
+with open("active_logging_config.txt", 'r') as f:
+    yaml_path = f.read()
+
+log_config_path = osp.join(osp.dirname(__file__), yaml_path)
+do_log = False
+if osp.exists(yaml_path):
+    with open(yaml_path, 'r') as stream:
+        config = yaml.safe_load(stream)
+        file_log_setting = config.get(osp.basename(__file__), False)
+        if file_log_setting:
+            do_log = True
+
+print(f"{osp.basename(__file__)} do_log: {do_log}")
+if do_log:
+    import python_logger.log_helper as py_log
+else:
+    import python_logger.log_helper_off as py_log
+
+MY_LOGGER = logging.getLogger("prototip") # or any string. Mind this: same string, same logger.
+MY_LOGGER.setLevel(logging.DEBUG)
+
+}
+
+
+
+
 LOG_FOR_CLASS:
 
 You can also put
@@ -394,7 +525,7 @@ This does 3 things. They can all be disabled if you call this like so:
 @py_log.log_for_class(passed_logger=MY_LOGGER, add_automatic_str_method=False, add_automatic_repr_method=False, add_class_autolog=False)
 
 If add_class_autolog = True,
-this will set @py_log.log(passed_logger=MY_LOGGER) to all the class's methods.
+this will set @py_log.autolog(passed_logger=MY_LOGGER) to all the class's methods.
 
 This seems nice at first, but it also sets the logging to __init__ 
 and other methods python includes by default. And you don't want that.
@@ -460,7 +591,7 @@ But the printout cuts it off. Even repr(arr) cuts it off.
 
 You can use:
 with np.printoptions(threshold=np.inf):
-    py_log.manual_log(arr)   # or log_locals or log_stack
+    py_log.log_manual(arr)   # or log_locals or log_stack
 
 Mind that this took my program 10 seconds for 4 1024x1024x3 imgs.
 So COMMENT IT OUT IN PROD!!!
@@ -708,13 +839,13 @@ So you have to go and add change the import line to python_logger.log_helper_off
 TIMING YOUR CODE - continued:
 {
 Less useful way of logging time:
-If LOG_TIME_ELSEWHERE == True, in log_locals, log_stack, manual_log we log:
-- time since last call of log_locals/log_stack/manual_log respectively
+If LOG_TIME_ELSEWHERE == True, in log_locals, log_stack, log_manual we log:
+- time since last call of log_locals/log_stack/log_manual respectively
 - time since last logging of any time (including all above loggings)
 
-In an individual call of .log(), log_locals(), log_stack() you can disable the time logging by setting time_log=False.
+In an individual call of .autolog(), log_locals(), log_stack() you can disable the time logging by setting time_log=False.
 Time since last log will also not be affected if logging is disabled in this way.
-However, manual_log doesn't have this parameter option - we want to keep the parameters clean.
+However, log_manual doesn't have this parameter option - we want to keep the parameters clean.
 }
 
 """
@@ -757,10 +888,10 @@ log_locals() contains " @log_locals " in its printout instead.
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 Important VS code regex trick:
 
-Since we need to add @log(our_logger) before every function, this is tedious.
+Since we need to add @autolog(our_logger) before every function, this is tedious.
 We can instead use Ctrl+F with regex.
 Find: ^( *)def
-Replace: $1@log(our_logger)\n$1def
+Replace: $1@autolog(our_logger)\n$1def
 Do the same for log_locals() and return.
 
 Explanation:
@@ -776,7 +907,7 @@ A capture group is whatever is in parentheses ()
 Possibly add @log_for_class(passed_logger=YOUR_LOGGER) above your classes. This can:
 
 if add_class_autolog == True
-- set @log decorator to all the class's methods. The problem is, it's not just your methods. It's also __init__ and other methods.
+- set @autolog decorator to all the class's methods. The problem is, it's not just your methods. It's also __init__ and other methods.
 
 If add_automatic_str_method == True
 - add a __str__ method to the class, which prints all its attributes.
@@ -813,10 +944,10 @@ Useful in some cases:
 """
 !!!!!!!!!!!!!
 Important VS code trick:
-Since we need to add @log(our_logger) before every function, this is tedious.
+Since we need to add @autolog(our_logger) before every function, this is tedious.
 We can instead use Ctrl+F with regex.
 Find: ^( *)def
-Replace: $1@log(passed_logger=YOUR_LOGGER)\n$1def
+Replace: $1@autolog(passed_logger=YOUR_LOGGER)\n$1def
 Do the same for log_locals() and return.
 
 (Explanation:
@@ -841,12 +972,12 @@ This log_module:
 - Checks if its type hints are correct. Can crash program if ASSERT_TYPES is True and LET_LOGGER_CRASH_PROGRAM is True.
 - Enables simple logging for classes. Enables an automatic addition of __str__ method to classes.
 - Although simple logging for classes adds the logging for all methods called on it, like __init__ and other things as well,
-so adding @log to the methods in the class instead is a good idea.
+so adding @autolog to the methods in the class instead is a good idea.
 - Handles loggging shutdown upon SIGINT (ctrl-c interrupt)
 - Offers the function log_locals(logger), which logs all local variables of a function.  
 
 
-This is the logger that is used if no logger is passed to the decorator, like @log(my_own_logger).
+This is the logger that is used if no logger is passed to the decorator, like @autolog(my_own_logger).
 When logging, it is best to pass your logger of that file.
 # in theory you could also just change DEFAULT_LOGGER after importing. 
 
@@ -908,6 +1039,113 @@ class FileAndStreamHandlers:
             handler.close()
 
 
+
+
+
+
+# because RotatingFileHandler doesn't work for some rason, we make our own variant
+
+class CustomFileHandler(logging.FileHandler):
+    def __init__(self, filename, maxBytes, backupCount=1, *args, **kwargs):
+        super().__init__(filename, *args, **kwargs)
+        self.maxBytes = maxBytes
+        self.backupCount = backupCount
+        self.baseFilename = os.path.abspath(filename)
+        self.is_first_file = True
+
+    def emit(self, record):
+        try:
+            if self.shouldRollover(record):
+                self.doRollover()
+            super().emit(record)
+        except Exception:
+            self.handleError(record)
+
+    def shouldRollover(self, record):
+        if self.stream is None:  # Delay was set.
+            self.stream = self._open()
+        if os.path.getsize(self.baseFilename) >= self.maxBytes:
+            return True
+        return False
+
+    def doRollover(self):
+        self.stream.close()
+        
+
+        # the appropriate backup numbers are: [1, 2,..., self.backupCount]
+        # delete the backup-overflowing file, it if exists:
+        if os.path.exists(f"{self.baseFilename}.{self.backupCount}"):
+            os.remove(f"{self.baseFilename}.{self.backupCount}")
+
+        # Bit-shift the names of existing backups:
+        # range(4,0,-1) is [4, 3, 2, 1]
+        for i in range(self.backupCount - 1, 0, -1):
+            sfn = f"{self.baseFilename}.{i}"
+            dfn = f"{self.baseFilename}.{i + 1}"
+            if os.path.exists(sfn):
+                os.rename(sfn, dfn)
+        
+        
+
+        # If this was the first file, we want iit to be a special backup, so that we never lose it.
+        # And if this is the first file, the above for loop didn't do anything anyway.
+        if self.is_first_file:
+            dfn = self.baseFilename + ".first_backup"
+            os.rename(self.baseFilename, dfn)
+            self.is_first_file = False
+        else:
+            # Rename the base file to .1
+            dfn = self.baseFilename + ".1"
+            os.rename(self.baseFilename, dfn)
+        
+        # Reopen the base file
+        self.stream = self._open()
+
+
+
+
+
+
+
+
+MAX_CHARS_IN_ONE_VAR = int(1e5)
+MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024
+BACKUP_NUM = 1
+VAR_BLACKLIST = []
+
+def limitations_setup(max_chars_in_one_var=MAX_CHARS_IN_ONE_VAR, max_file_size_bytes=MAX_FILE_SIZE_BYTES, backup_num=BACKUP_NUM, always_have_first_backup=True, var_blacklist=VAR_BLACKLIST):
+    
+    # max_chars_in_one_var is the maximum number of characters of logging one variable that will be logged.
+    # There are some repr()s that are very long and pointless and keep repeting (like the printout of model architecture in pytorch)
+  
+    # max_file_size_bytes is 20 Mb by default. Because with huge files, the log viewer can't open them anyway.
+
+    # backup_num is the number of old log files to keep before deleting the oldest one.
+
+    # always_have_first_backup is True by default.
+
+    # var_blacklist is a list of variable names that will not be logged. This is useful to prevent annoying long logs that keep being logged but aren0t useful at all.
+
+    global MAX_CHARS_IN_ONE_VAR
+    global MAX_FILE_SIZE_BYTES
+    global BACKUP_NUM
+    global VAR_BLACKLIST
+
+    if not always_have_first_backup:
+        raise NotImplementedError("This is not implemented yet.")
+    
+
+    MAX_CHARS_IN_ONE_VAR = int(max_chars_in_one_var)
+    MAX_FILE_SIZE_BYTES = max_file_size_bytes
+    BACKUP_NUM = backup_num
+    VAR_BLACKLIST = var_blacklist
+
+
+
+
+
+
+
 # A global variable is shared across all files that import it.
 # So when one file sets up logging, others won't set it up again.
 # (Unless you e.g. want to set up more different loggers.
@@ -926,17 +1164,36 @@ def file_handler_setup(logger, path_to_python_logger_folder, add_stdout_stream: 
 
     # Create a file handler
     current_time = datetime.datetime.now()
-    log_file_name = f"""log_{current_time.strftime('%d_%H-%M-%S_%m-%Y')}.log
-    Add print_log_file_name=False to file_handler_setup() to disable this printout."""
-    file_handler = logging.FileHandler(os.path.join(logs_folder, log_file_name))
+    log_file_name = f"""log_{current_time.strftime('%d_%H-%M-%S_%m-%Y')}.log"""
+
+    # Great idea, but there are some errors. Probably because more processes are trying to write to the same file. But I have no idea and will not try further.
+    # handlers = py_log_always_on.file_handler_setup(MY_LOGGER, python_logger_path, rotation_megabytes=1024)
+    # }
+    # (when the log file is rotation_megabytes big, it is renamed to log_file_name.1 (backed up), and a new file is created.
+    # When the new file reaches rotation_megabytes, the prev backup, the current file backs up, and a new file is created.
+    # This is meant so you don't destroy your diskspace.
+    # Set rotation_megabytes to 0 to never rotate the file.)
+    # , rotation_megabytes: int = 10 * 1024, backup_count: int = 2
+    # if rotation_megabytes >= 0:
+    #     # When file becomes maxBytes big, it is renamed to log_file_name.1, and a new file is created.
+    #     # backupCount is the number of old log files to keep before deleting them.
+    #     # e.g. (1GB = 1 * 1024 * 1024 * 1024 bytes)
+    #     # If maxBytes == 0, rollover never occurs, so we keep writing in the initial file.
+    #     file_handler = logging.handlers.RotatingFileHandler(os.path.join(logs_folder, log_file_name), maxBytes=rotation_megabytes * 1024 * 1024, backupCount=backup_count)
+    # else:
+    #     raise ValueError("rotation_megabytes must be >= 0.")
+
+
+    file_handler = CustomFileHandler(os.path.join(logs_folder, log_file_name), maxBytes=MAX_FILE_SIZE_BYTES, backupCount=BACKUP_NUM)
     file_handler.setLevel(logging.DEBUG)
     
     # This is nice to have, so you can easily find the log file that corresponds to some out.txt that isn't the latest one.
     if print_log_file_name:
-        print(f"Log file name: {log_file_name}")
+        print(f"""Log file name: {log_file_name}.
+            Add print_log_file_name=False to file_handler_setup() to disable this printout.""")
 
-    # Enables easier use of log_server()
     
+    # Enables easier use of log_server.py
     with open(os.path.join(logs_folder, "latest_log_name.txt"), "w") as f:
         f.write(log_file_name)
 
@@ -961,11 +1218,19 @@ def file_handler_setup(logger, path_to_python_logger_folder, add_stdout_stream: 
 
 
 
+
+
+
 def mark_list_of_strings(list_of_strings, start_marker, end_marker=None):
     if end_marker is None:
         end_marker = start_marker
-    return [start_marker + s + end_marker for s in list_of_strings]
+    
+    marked_list = []
+    for s in list_of_strings:
+        curr_s = s[:MAX_CHARS_IN_ONE_VAR]
+        marked_list.append(start_marker + s + end_marker)
 
+    return marked_list
 
 
 def get_frame_up_the_stack(num_back):
@@ -1014,10 +1279,143 @@ def get_func_frame_info_dict(frame):
 
 
 
+def _get_unique_and_hist_string(arr, num_bins=10):
+
+    try:
+        import numpy as np
+
+        if isinstance(arr, np.ndarray):
+
+            unique, counts = np.unique(arr, return_counts=True)
+            num_unique = len(unique)
+
+            unique_list = unique.tolist()
+
+            logging_string = f"\n Num of unique vals: {num_unique}. "
+
+            # Get the minimum and maximum values
+            min_val = np.min(unique)
+            max_val = np.max(unique)
+
+
+            # Count the number of elements equal to min and max
+            min_count = counts[unique_list.index(min_val)]
+            max_count = counts[unique_list.index(max_val)]
+
+            logging_string += f"Min: {min_val} count: ({min_count}), Max: {max_val} count: ({max_count}). "
+
+
+
+            # In the case where there are less unique values than num_bins, we just log the counts of each unique value.
+            if num_unique <= num_bins:
+                num_of_all = np.sum(counts)
+                percents = counts / num_of_all * 100
+
+                logging_string += f"Unique_counts: \n"
+                counts_list = counts.tolist()
+                percents_list = percents.tolist()
+                for u, c, p in zip(unique, counts_list, percents_list):
+                    logging_string += f"{u}: {c} ({p:.2f}%)\n"
+
+                return logging_string
+            
+            
+
+            # Define the bin edges excluding min and maxbins
+            bin_edges = np.linspace(min_val, max_val, num_bins+1)
+
+            # Compute the histogram
+            hist, _ = np.histogram(arr, bins=bin_edges)
+            percent_hist = hist / np.sum(hist) * 100
+
+            hist_list = hist.tolist()
+            percent_hist_list = percent_hist.tolist()
+
+            ranges = [f"{bin_edges[i]}-{bin_edges[i+1]}" for i in range(num_bins)]
+            logging_string += f"Hist (includes min and max vals):\n (percentage, count : range)\n"
+            for r, h, p in zip(ranges, hist_list, percent_hist_list):
+                logging_string += f"{p:.2f}%, {h} : {r}\n"
+            
+            return logging_string
+    except Exception as e:
+        # raise e
+        pass
+
+    try:
+    
+        import torch
+        if isinstance(arr, torch.Tensor):
+
+
+            # Get unique values and their counts
+            unique, counts = torch.unique(arr, return_counts=True)
+            num_unique = len(unique)
+
+            unique_list = unique.tolist()
+
+            logging_string = f"\n Num of unique vals: {num_unique}. "
+
+            # Get the minimum and maximum values
+            min_val = torch.min(unique).item()
+            max_val = torch.max(unique).item()
+
+            min_count = counts[unique_list.index(min_val)].item()
+            max_count = counts[unique_list.index(max_val)].item()
+
+            logging_string += f"Min: {min_val} count: ({min_count}), Max: {max_val} count: ({max_count}). "
+
+
+
+            # In the case where there are less unique values than num_bins, we just log the counts of each unique value.
+            if num_unique <= num_bins:
+                num_of_all = torch.sum(counts).item()
+                percents = counts / num_of_all * 100
+
+                logging_string += f"Unique_counts: \n"
+                counts_list = counts.tolist()
+                percents_list = percents.tolist()
+                for u, c, p in zip(unique, counts_list, percents_list):
+                    logging_string += f"{u}: {c} ({p:.2f}%)\n"
+
+                return logging_string
+            
+
+
+            # Define the bin edges excluding min and max
+            bin_edges = torch.linspace(min_val, max_val, steps=num_bins + 1)
+
+            # Compute the histogram
+            hist, _ = torch.histogram(arr, bins=bin_edges)
+            percent_hist = hist / torch.sum(hist) * 100
+            
+            hist_list = hist.tolist()
+            percent_hist_list = percent_hist.tolist()
+
+            ranges = [f"{bin_edges[i].item()}-{bin_edges[i+1].item()}" for i in range(num_bins)]
+            logging_string += f"Hist (includes min and max vals):\n (percentage, count : range)\n"
+            for r, h, p in zip(ranges, hist_list, percent_hist_list):
+                logging_string += f"{p:.2f}%, {h} : {r}\n"
+            
+            return logging_string
+    except Exception as e:
+        # raise e
+        pass
+    
+    # In case nothing was returned
+    return None
+
+    
+
+
 
 
 def _get_list_of_reprs_from_dict_like_kwargs(kwargs_like_dict, check_attributes=True, attr_sets=["size"], added_attribute_names=[]):
     
+    # attr_sets is a list of strings that can be: "size", "math", "hist". Other strs are ignored.
+    # "size" are O(1) operations, so they are the default.
+    # "math" and "hist" are O(n) operations.
+
+    # Mind that "hist" requires numpy and torch to be installed.
 
     check_attrs = [name for name in added_attribute_names]
     # if v has .shape, .size, .dtype, .__len__ or .shape(), .size(), .dtype(), .__len__(), we want to log that too.
@@ -1029,9 +1427,19 @@ def _get_list_of_reprs_from_dict_like_kwargs(kwargs_like_dict, check_attributes=
     local_vars_strs = []
 
     for k, v in kwargs_like_dict.items():
+
+
         curr_str = f"{k} ({type(v)}) "
+        
+        if k in VAR_BLACKLIST:
+            curr_str += "= (var is log-blacklisted)"
+            local_vars_strs.append(curr_str)
+            continue
+
 
         if check_attributes:
+
+
             for attr_name in check_attrs:
                 try:
                     curr_attr = getattr(v, attr_name, "No such attribute.")
@@ -1052,6 +1460,13 @@ def _get_list_of_reprs_from_dict_like_kwargs(kwargs_like_dict, check_attributes=
 
                 except Exception as e:
                     curr_str += f"(logger error in trying to get {attr_name}. Error: {e}) "
+
+
+            # This functionality is not as simple as regular getattr checking, so we do it separately.
+            if "hist" in attr_sets:
+                hist_str = _get_unique_and_hist_string(v)
+                if hist_str is not None:
+                    curr_str += hist_str
 
         try:
             curr_str += f"= {v!r}"
@@ -1153,9 +1568,22 @@ def log_stack(passed_logger=DEFAULT_LOGGER, check_attributes=True, attr_sets=["s
 
 
 
-def manual_log(passed_logger=DEFAULT_LOGGER, check_attributes=True, attr_sets=["size", "math"], added_attribute_names=[], *args, **kwargs):
-    
-    logging_string = " @manual_log \n"
+def log_manual(passed_logger=DEFAULT_LOGGER, *args, **kwargs):
+
+    check_attributes = True
+    attr_sets = ["size", "math", "hist"]
+    added_attribute_names = []
+
+    if "check_attributes" in kwargs:
+        check_attributes = kwargs["check_attributes"]
+    if "attr_sets" in kwargs:
+        attr_sets = kwargs["attr_sets"]
+    if "added_attribute_names" in kwargs:
+        added_attribute_names = kwargs["added_attribute_names"]
+
+
+
+    logging_string = " @log_manual \n"
 
     
 
@@ -1307,7 +1735,7 @@ class MyLogger:
 
 
 
-def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None, assert_types=True, let_logger_crash_program=True, log_stack_on_exception=False, time_log=True, check_attributes=True, attr_sets=["size"], added_attribute_names=[]):
+def autolog(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None, assert_types=True, let_logger_crash_program=True, log_stack_on_exception=False, time_log=True, check_attributes=True, attr_sets=["size"], added_attribute_names=[]):
 
         
 
@@ -1378,7 +1806,7 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None, as
 
                 
 
-                # ----------------- LOGGING -----------------
+                # ----------------- LOGGING PREP -----------------
 
                 # Here we try to log the function call.
                 # Now comes what we do with the logger before function call:
@@ -1400,23 +1828,12 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None, as
                 logging_string = " @autolog \n"
                 logging_string += f" Function {func_name} \n"
                 logging_string += f"Call id: {function_call_id} \n"
-                
-                logging_string += "Called with arguments: "
-                logging_string += " \n " + ", \n".join(marked_printable_args)
+                args_string = "Called with arguments: "
+                args_string += " \n " + ", \n".join(marked_printable_args)
+                logging_string += args_string
                 logger.debug(logging_string)
+                
 
-                # Initial weird way
-                """
-                print(signature)
-                print(args, kwargs)
-                print(bound_args.arguments)
-                
-                # Log function call
-                args_repr = [repr(arg) for arg in args]
-                kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
-                logger.debug(f"Function {func.__name__} called with arguments: {', '.join(args_repr + kwargs_repr)}")
-                """
-                
 
                 # Type checking
                 for param, arg_value in bound_args.arguments.items():
@@ -1431,6 +1848,9 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None, as
 
 
 
+                # We want it right before the function call, but we want it in a try-block, so it can't mess up the function call.
+                time_right_before_func_call = CURR_TIME_FUNC()
+
             except Exception as e:
                 if let_logger_crash_program:
                     raise e
@@ -1443,29 +1863,35 @@ def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None, as
             # Here we try to call the passed function. We return it after the logging try block.
             try:
 
-
-                time_right_before_func_call = CURR_TIME_FUNC()
                 # WHERE THE FUNC HAPPENS!!!
                 result = func(*args, **kwargs)
-                time_right_after_func_call = CURR_TIME_FUNC()
-                func_duration = time_right_after_func_call - time_right_before_func_call
-
-
                 
-                if LOG_TIME_AUTOLOG and time_log:
+                try:
+                    time_right_after_func_call = CURR_TIME_FUNC()
+                    func_duration = time_right_after_func_call - time_right_before_func_call
 
-                    logging_string = " @time_autolog \n"
-                    logging_string += f"Function {func_name} \n"
-                    logging_string += f"Call id: {function_call_id} \n"
-                    logging_string += f"Function duration: {func_duration:.8f} s\n"
-                    logger.debug(logging_string)
+                    
+                    if LOG_TIME_AUTOLOG and time_log:
 
+                        logging_string = " @time_autolog \n"
+                        logging_string += f"Function {func_name} \n"
+                        logging_string += f"Call id: {function_call_id} \n"
+                        logging_string += f"Function duration: {func_duration:.8f} s\n"
+                        logging_string += f"Returned: {result!r} \n"
+                        logger.debug(logging_string)
+
+                except Exception as e:
+                        if let_logger_crash_program:
+                            raise e
+            
                 
+
                 return result
             
 
             # The except block for the entire function.
             except Exception as e:
+
                 if log_stack_on_exception:
                     log_stack(logger)
                 logger.exception(f""" @autolog 
@@ -1503,7 +1929,7 @@ def log_for_class(_cls=None, *, passed_logger: Union[MyLogger, logging.Logger] =
             # Wrap each method with the log decorator
             for name, member in inspect.getmembers(cls):
                 if inspect.isfunction(member):
-                    setattr(cls, name, log(member, passed_logger=passed_logger))
+                    setattr(cls, name, autolog(member, passed_logger=passed_logger))
 
         return cls
     
@@ -1533,9 +1959,9 @@ def log_for_class(cls):
 
     for name, member in inspect.getmembers(cls):
         if inspect.isfunction(member):
-            # Below this is performed: cls.func_name = log(class.func_name)
-            # Which is what is in the background of using @log above a function.
-            setattr(WrapperClass, name, log(getattr(cls, name)))
+            # Below this is performed: cls.func_name = autolog(class.func_name)
+            # Which is what is in the background of using @autolog above a function.
+            setattr(WrapperClass, name, autolog(getattr(cls, name)))
     
     return WrapperClass
 """
@@ -1605,11 +2031,11 @@ if __name__ == "__main__":
             self.x = x
             self.y = y
         
-        @log(passed_logger=MY_LOGGER)
+        @autolog(passed_logger=MY_LOGGER)
         def add(self, z: int) -> int:
             return self.x + z
         
-        @log(passed_logger=MY_LOGGER)
+        @autolog(passed_logger=MY_LOGGER)
         def concat(self, s: str) -> str:
             return self.y + s
     
@@ -1622,7 +2048,7 @@ if __name__ == "__main__":
     
     # actual logger is passed
 
-    @log(passed_logger=MY_LOGGER)
+    @autolog(passed_logger=MY_LOGGER)
     def sum(a, b=10):
         return a + b
     sum(10)
@@ -1630,11 +2056,11 @@ if __name__ == "__main__":
     
     
     # MY_LOGGER is passed as an argument to the decorated function
-    @log
+    @autolog
     def foo(a, b, logger):
         pass
 
-    @log
+    @autolog
     def bar(a, b=10, logger=None): # Named parameter
         pass
 
@@ -1650,7 +2076,7 @@ if __name__ == "__main__":
         def __init__(self, logger):
             self.lg = MY_LOGGER
 
-        @log
+        @autolog
         def sum(self, a: int, b: int =10):
             hejhoj = 5
             log_locals(MY_LOGGER)
@@ -1671,7 +2097,7 @@ if __name__ == "__main__":
     if inp == "c":
 
         # Testing type assertion
-        @log(passed_logger=MY_LOGGER)
+        @autolog(passed_logger=MY_LOGGER)
         def sum(a: int, b=10):
             return a+b
         sum(1.25, 20)
@@ -1751,7 +2177,7 @@ if __name__ == "__main__":
 
     # no logger is passed
 
-    @log
+    @autolog
     def sum(a, b=10):
         return a+b
     sum(10, 20)
@@ -1760,7 +2186,7 @@ if __name__ == "__main__":
 
     # logger class is passed
 
-    @log(passed_logger=MyLogger())
+    @autolog(passed_logger=MyLogger())
     def sum(a, b=10):
         return a + b
     sum(10)
@@ -1770,7 +2196,7 @@ if __name__ == "__main__":
 
     lg = MyLogger().get_logger()
 
-    @log(passed_logger=lg)
+    @autolog(passed_logger=lg)
     def sum(a, b=10):
         return a + b
     sum(10)
@@ -1778,11 +2204,11 @@ if __name__ == "__main__":
     
     
     # logger is passed as an argument to the decorated function
-    @log
+    @autolog
     def foo(a, b, logger):
         pass
 
-    @log
+    @autolog
     def bar(a, b=10, logger=None): # Named parameter
         pass
 
@@ -1798,7 +2224,7 @@ if __name__ == "__main__":
         def __init__(self, logger):
             self.lg = logger
 
-        @log
+        @autolog
         def sum(self, a: int, b: int =10):
             hejhoj = 5
             log_locals(DEFAULT_LOGGER)
@@ -1815,7 +2241,7 @@ if __name__ == "__main__":
 
 
     # Testing type assertion
-    @log
+    @autolog
     def sum(a: int, b=10):
         return a+b
     sum(1.25, 20)

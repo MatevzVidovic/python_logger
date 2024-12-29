@@ -11,7 +11,7 @@ The most current version of the docs is in the comments at the top of log_helper
 
 This code helps you log your code with minimal effort.
 Above a function definition, you just add:
-@py_log.log(passed_logger=MY_LOGGER)
+@py_log.autolog(passed_logger=MY_LOGGER)
 def foo(a: int, b, c: float): ...
 This does:
 - automatic logging that the function was called and the arguments it was called with
@@ -142,8 +142,8 @@ Especially go look for the use of what log_stack returns. It comes in really han
 
 ## AUTOLOG:
 
-Add @py_log.log(passed_logger=MY_LOGGER) above functions you want to log.
-@py_log.log(passed_logger=MY_LOGGER)
+Add @py_log.autolog(passed_logger=MY_LOGGER) above functions you want to log.
+@py_log.autolog(passed_logger=MY_LOGGER)
 def foo(a, b, c):
     pass
 
@@ -167,7 +167,7 @@ If the types don't match (assertion error), or some other exception happens in l
 it will crash the code.
 
 You can disable both these behaviours by calling the decorator like so:
-@py_log.log(passed_logger=MY_LOGGER, assert_types=False, let_logger_crash_program=False)
+@py_log.autolog(passed_logger=MY_LOGGER, assert_types=False, let_logger_crash_program=False)
 
 We also log the time of execution of the function.
 However, to time the function, we have to run it first. But we want @autolog to happen right before the
@@ -287,8 +287,8 @@ These logs contain " @log_time " in its printout.
 
 
 Most useful way of logging time:
-if LOG_TIME_AUTOLOG == True, in autologging with .log() we log the time of execution of the decorated function.
-In an individual call of .log() you can disable the time logging by setting time_log=False.
+if LOG_TIME_AUTOLOG == True, in autologging with .autolog() we log the time of execution of the decorated function.
+In an individual call of .autolog() you can disable the time logging by setting time_log=False.
 
 
 
@@ -305,7 +305,7 @@ To do this easily in VS code, use regex:
 
 ^(?!.*@log\n)( *)def
 Find: ^( *)def
-Replace: \$1@py_log.log(passed_logger=MY_LOGGER)\n$1def
+Replace: \$1@py_log.autolog(passed_logger=MY_LOGGER)\n$1def
 
 and
 
@@ -385,7 +385,7 @@ This does 3 things. They can all be disabled if you call this like so:
 @py_log.log_for_class(passed_logger=MY_LOGGER, add_automatic_str_method=False, add_automatic_repr_method=False, add_class_autolog=False)
 
 If add_class_autolog = True,
-this will set @py_log.log(passed_logger=MY_LOGGER) to all the class's methods.
+this will set @py_log.autolog(passed_logger=MY_LOGGER) to all the class's methods.
 
 This seems nice at first, but it also sets the logging to \_\_init\_\_ 
 and other methods python includes by default. And you don't want that.
@@ -709,7 +709,7 @@ If LOG_TIME_ELSEWHERE == True, in log_locals, log_stack, manual_log we log:
 - time since last call of log_locals/log_stack/manual_log respectively
 - time since last logging of any time (including all above loggings)
 
-In an individual call of .log(), log_locals(), log_stack() you can disable the time logging by setting time_log=False.
+In an individual call of .autolog(), log_locals(), log_stack() you can disable the time logging by setting time_log=False.
 Time since last log will also not be affected if logging is disabled in this way.
 However, manual_log doesn't have this parameter option - we want to keep the parameters clean.
 }

@@ -27,7 +27,7 @@ def log_stack(passed_logger=DEFAULT_LOGGER, check_attributes=True, attr_sets=["s
     return
 
 
-def manual_log(passed_logger=DEFAULT_LOGGER, *args, **kwargs):
+def log_manual(passed_logger=DEFAULT_LOGGER, *args, **kwargs):
     return
 
 
@@ -49,7 +49,7 @@ class MyLogger:
 
 
 
-def log(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None, assert_types=True, let_logger_crash_program=True, log_stack_on_exception=False):
+def autolog(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None, assert_types=True, let_logger_crash_program=True, log_stack_on_exception=False):
     def decorator_log(func):
         @functools.wraps(func)
 

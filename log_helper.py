@@ -97,7 +97,7 @@ CODE SETUP:
 
 In your main file, above all imports at the top of the file, add this code:
 (above all imports so that file_handler_setup() is done before any 
-code from importing your other files is run. And so all the loggings 
+code from importing your other files is run - so all the loggings 
 are actually written to the output file.)
 {
 import logging
@@ -107,13 +107,11 @@ import python_logger.log_helper as py_log_always_on
 MY_LOGGER = logging.getLogger("prototip") # or any string. Mind this: same string, same logger.
 MY_LOGGER.setLevel(logging.DEBUG)
 
-
-import os.path as osp
 py_log_always_on.limitations_setup(max_file_size_bytes=100 * 1024 * 1024)
-python_logger_path = osp.join(osp.dirname(__file__), 'python_logger')
-handlers = py_log_always_on.file_handler_setup(MY_LOGGER, python_logger_path)
+handlers = py_log_always_on.file_handler_setup(MY_LOGGER)
+
 }
-(Quickly on the limitations_setup: 
+(Quickly on limitations_setup(): 
 max_file_size_bytes is the maximum size of the log file in bytes.
 After it is reached, the file is backed up and a new log file starts to be written to.
 Param backup_num is 1 by default, so only the latest backup is kept. (works like RotatintFileHandler in logging module).
@@ -124,7 +122,7 @@ And we also have var_blacklist - a list of variable names that will not be logge
 
 
 
-In all the other files you are importing, add this code without the file handler part:
+In all the other files you are importing, add this code without the file_handler_setup() part:
 {
 import logging
 import python_logger.log_helper_off as py_log
@@ -143,7 +141,8 @@ Although our code is set up so that this doesn't happen even if you mess up.)
 IF YOU WANT TO STOP LOGGING:
 
 If you want the logging to stop, you can:
-- simply comment out the 2 file_handler_setup lines in your main file. (still wastes CPU time)
+- simply comment out the 2 file_handler_setup lines in your main file.
+(the logging is still happening and wasting CPU time, it just isn't written to anywhere)
 - You change the line import python_logger.log_helper
 to: import python_logger.log_helper_off
 in all files where you use this import. Now the logging functions, including file_handler_setup,
@@ -157,9 +156,14 @@ you can make this _off change in just the file/files where you call file_handler
 
 USE:
 
+(This is outdated, so do not use it right now.)
 Go play with the following repo to get example uses and how they work: https://github.com/MatevzVidovic/pylog_tester.git
 It will be easier than just reading this text (although, do that too).
-Especially go look for the use of what log_stack returns. It comes in really handy in debugging with vizualizations.
+Especially go look for the use of what log_stack returns. 
+It could come in really handy in debugging with vizualizations.
+
+(Also outdated. But still, maybe it helps a little bit to get an image of how to use this stuff.)
+There is an if __name__ == "__main__": bellow with examples also.
 
 
 
@@ -431,7 +435,9 @@ Sometimes you don't want certain clutter in your logs, so you want to disable so
 Sometimes you want to run the program for a long time, and the log files would be way too huge.
 
 Either way, you keep going around your files and changing 
-import python_logger.log_helper as py_log to import python_logger.log_helper_off as py_log
+import python_logger.log_helper as py_log 
+to 
+import python_logger.log_helper_off as py_log
 and vice versa. And it's annoying.
 So we make a txt file: active_logging_config.txt like:
 logging_config.yaml
@@ -445,6 +451,9 @@ pruner.py : True
 And in this way you specify which files should log and which shouldn't. And you can have
 logging_config.yaml, 1_logging_config.yaml, 2_logging_config.yaml, ... and just change the active_logging_config.txt
 
+And so tha active_logging_config.txt and k_logging_config.yaml, ..., don't pollute your repo,
+you put them into a folder "pylog_configs". And its also easier to gitignore this way.
+
 
 Main file:
 {
@@ -454,10 +463,11 @@ import yaml
 import os.path as osp
 import python_logger.log_helper as py_log_always_on
 
-with open("active_logging_config.txt", 'r') as f:
-    yaml_path = f.read()
+with open(f"{osp.join('pylog_configs', 'active_logging_config.txt')}", 'r') as f:
+    cfg_name = f.read()
+    yaml_path = osp.join('pylog_configs', cfg_name)
 
-log_config_path = osp.join(osp.dirname(__file__), yaml_path)
+log_config_path = osp.join(yaml_path)
 do_log = False
 if osp.exists(yaml_path):
     with open(yaml_path, 'r') as stream:
@@ -475,9 +485,9 @@ else:
 MY_LOGGER = logging.getLogger("prototip") # or any string. Mind this: same string, same logger.
 MY_LOGGER.setLevel(logging.DEBUG)
 
-python_logger_path = osp.join(osp.dirname(__file__), 'python_logger')
-py_log_always_on.limitations_setup(max_file_size_bytes=24 * 1024)
-handlers = py_log_always_on.file_handler_setup(MY_LOGGER, python_logger_path)
+py_log_always_on.limitations_setup(max_file_size_bytes=100 * 1024 * 1024, var_blacklist=["tree_ix_2_module", "mask_path"])
+handlers = py_log_always_on.file_handler_setup(MY_LOGGER)
+
 
 }
 
@@ -489,10 +499,11 @@ import yaml
 import os.path as osp
 import python_logger.log_helper as py_log_always_on
 
-with open("active_logging_config.txt", 'r') as f:
-    yaml_path = f.read()
+with open(f"{osp.join('pylog_configs', 'active_logging_config.txt')}", 'r') as f:
+    cfg_name = f.read()
+    yaml_path = osp.join('pylog_configs', cfg_name)
 
-log_config_path = osp.join(osp.dirname(__file__), yaml_path)
+log_config_path = osp.join(yaml_path)
 do_log = False
 if osp.exists(yaml_path):
     with open(yaml_path, 'r') as stream:
@@ -509,6 +520,8 @@ else:
 
 MY_LOGGER = logging.getLogger("prototip") # or any string. Mind this: same string, same logger.
 MY_LOGGER.setLevel(logging.DEBUG)
+
+
 
 }
 
@@ -819,7 +832,7 @@ TO STOP LOGGING - EXPLANATION:
 {
 If you only comment out:
 # python_logger_path = os.path.join(os.path.dirname(__file__), 'python_logger')
-# handlers = py_log.file_handler_setup(MY_LOGGER, python_logger_path, add_stdout_stream=False)
+# handlers = py_log.file_handler_setup(MY_LOGGER, add_stdout_stream=False)
 Then, since we set MY_LOGGER to debug level, what we log won't go anywhere. (By default only WARNING and above get printed to stderr.)
 So we have effectively turned off writing logs.
 But we are still wasting a bunch of CPU time - the logging is still happening, it just isn't written to anywhere.
@@ -1152,13 +1165,14 @@ def limitations_setup(max_chars_in_one_var=MAX_CHARS_IN_ONE_VAR, max_file_size_b
 # If so, change the if condition to >= k.)
 NUM_OF_FILE_HANDLER_SETUP_USES = 0
 
-def file_handler_setup(logger, path_to_python_logger_folder, add_stdout_stream: bool = False, print_log_file_name: bool = True):
+def file_handler_setup(logger, add_stdout_stream: bool = False, print_log_file_name: bool = True):
     
     global NUM_OF_FILE_HANDLER_SETUP_USES
     if NUM_OF_FILE_HANDLER_SETUP_USES >= 1:
         return None
     NUM_OF_FILE_HANDLER_SETUP_USES += 1
 
+    path_to_python_logger_folder = os.path.dirname(os.path.abspath(__file__))
     os.makedirs(os.path.join(path_to_python_logger_folder, "logs"), exist_ok=True)
     logs_folder = os.path.join(path_to_python_logger_folder, "logs")
 
@@ -1409,7 +1423,7 @@ def _get_unique_and_hist_string(arr, num_bins=10):
 
 
 
-def _get_list_of_reprs_from_dict_like_kwargs(kwargs_like_dict, check_attributes=True, attr_sets=["size"], added_attribute_names=[]):
+def _get_list_of_reprs_from_dict_like_kwargs(kwargs_like_dict, check_attributes=True, attr_sets=["size"], added_attribute_names=[], func_name=None):
     
     # attr_sets is a list of strings that can be: "size", "math", "hist". Other strs are ignored.
     # "size" are O(1) operations, so they are the default.
@@ -1427,6 +1441,7 @@ def _get_list_of_reprs_from_dict_like_kwargs(kwargs_like_dict, check_attributes=
     local_vars_strs = []
 
     for k, v in kwargs_like_dict.items():
+
 
 
         curr_str = f"{k} ({type(v)}) "
@@ -1468,8 +1483,19 @@ def _get_list_of_reprs_from_dict_like_kwargs(kwargs_like_dict, check_attributes=
                 if hist_str is not None:
                     curr_str += hist_str
 
+
+
+
         try:
-            curr_str += f"= {v!r}"
+            # Preventing infinite recursion in the case where the object has log_for_class decorator,
+            # and has a __repr__ method (which then has autolog decorator).
+
+            # And so when we call {v!r}, where the v is self (repr has self as a param),
+            # it calls the __repr__ method, which calls autolog, which calls the __repr__ method, ...
+            detect_recursion = func_name == "__repr__" and k == "self"
+            
+            if not detect_recursion:
+                curr_str += f"= {v!r}"
         except:
             curr_str += f"= (logger error in trying to get the representation of the object.)"
 
@@ -1750,7 +1776,7 @@ def autolog(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None
             # Also, if we fail here, the try block that does the logging will fail too.
             # But the function result will still be returned correctly.
 
-            function_call_id = random.randint(0, 1e9)
+            function_call_id = random.randint(0, int(1e9))
 
             try:
 
@@ -1822,7 +1848,7 @@ def autolog(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None
                 for key, arg in bound_args.arguments.items():
                     args_dict[key] = arg
                     
-                printable_args = _get_list_of_reprs_from_dict_like_kwargs(args_dict, check_attributes=check_attributes, attr_sets=attr_sets, added_attribute_names=added_attribute_names)
+                printable_args = _get_list_of_reprs_from_dict_like_kwargs(args_dict, check_attributes=check_attributes, attr_sets=attr_sets, added_attribute_names=added_attribute_names, func_name=func_name)
                 marked_printable_args = mark_list_of_strings(printable_args, start_marker="[START_VAR]", end_marker="[END_VAR]")
                 
                 logging_string = " @autolog \n"
@@ -1975,7 +2001,7 @@ if __name__ == "__main__":
     MY_LOGGER = logging.getLogger("whatever_name_you_want")
     MY_LOGGER.setLevel(logging.DEBUG)
 
-    handlers = file_handler_setup(MY_LOGGER, ".", add_stdout_stream=True)
+    handlers = file_handler_setup(MY_LOGGER, add_stdout_stream=True)
 
     # # Create a file handler
     # current_time = datetime.datetime.now()

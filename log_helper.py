@@ -38,55 +38,56 @@ Also:
 - logging of whatever you want (py_log.log_manual(MY_LOGGER, "rocni string", vrba, vrbica_moja=vrba))
 - and some other stuff too.
 And most importantly:
-- you can view all these logs in a nice frontend that is easy to filter.
+- you can view all these logs in a nice way that is easy to filter.
 """
 
 # Main info:
 """
 SETUP:
 
-Add this repo as a submodule:
-(I suggest you instead add your fork of the repo)
-git submodule add https://github.com/MatevzVidovic/python_logger.git
-git commit -m "Add python_logger as a submodule"
-
-When cloning your repo, use:
-git clone --recurse-submodules [URL]
-This will mean the submodule (python_logger) is cloned as well.
-
-When pulling, use:
-git pull --recurse-submodules
+Clone this repo in a separate folder.
+Then just copy the python_logger folder into your main repo.
+We used to recommend subomdule use, but have found it to not be worth the hassle.
 
 
-To view the latest log_file that has been created do:
+
+VIEWING LOGS:
+
+We used to have you run a Flask server which parsed the logs, and passed them to a Vite React frontend server.
+This gave you some nice visuals, but CORS often didn't work, and the setup caused some pain.
+Now we strongly recommend: LOG_TYPE = "py" (as is set by default)
+And viewing the logs using viewer.py, as described here:
+
+Open a new terminal tab.
+run:
 cd python_logger
-python3 server.py
-Make new terminal tab
-cd python_logger/log_frontend
-npm run dev
-And open the localhost that is shown in the terminal in your browser.
+python3 viewer.py logs/log_999_sthsth.py
+This will create 000temp_out.py in the logs folder.
+Open this in vscode.
 
-You might need to pip3 install flask and flask_cors.
-For the frontend, you might need to install node and npm.
-Then you might need to install vite (npm install vite --save-dev).
-And then your node version might be too old or something, so you need to update nvm or sth,
-idk, I just coppied what chatGPT gave when I gave it the error message and it worked.
+- use of log regex is well explained in the console printout.
 
-Sometimes you need to ctrl+C server.py and then run it again.
-If logs aren't working, this is the first thing to try.
+- make a note of conditions you want to filter by,
+and paste it to the terminal. This gives you easy reproducability
+of the wanted filtering later. 
+e.g.
+c:a
+n:all
+n:a
+k:2
+c:@autolog
+
+Important: make sure to copy the last newline too (here, the \n after c:@autolog)
+by dragging your mouse to the empty line after the conditions.
+Otherwise, it doesn't get added.
 
 
-I suggest you fork the python_logger repo and then add your fork as a submodule instead.
-This will allow you to change the python_logger code (like the global variables or some small additions).
-It's important you fork so that you can then push and your main repo remembers that you are using the new commit.
-
-If you go change the submodule code:
-When doing git add . in your main repo, the code changes in your submodule are never included.
-All that your main repo has, is a file that says which commit of the submodule is the right one.
-If you want to push the changes of the code in the submodule, you go to the submodule folder in the terminal,
-and then commit and push from there. This will commit to the python_logger repo.
-And then the main repo changes the file that tracks which submodule commit is the right one.
-That file change needs to be commited like any other.
+- use ctrl + K + 0  in vscode
+This collapses the text in python.
+It will also collapse the multiline strings.
+You then manually uncollapse certain logs on the left side (by the line numbers).
+Also, use ctrl F to search through the logs. This automatically uncollapses the found log.
+Reminder: vscode offers it's own regex search in ctrl F.
 
 
 
@@ -786,6 +787,62 @@ this becomes a huge pain.
 
 
 
+# Old advice:
+
+# Use as a submodule - makes a ton of managements problems. Just don't.
+# Also, how to view it - react viewing is not recommended anymore. Make .py logs and use viewer.py.
+"""
+
+
+
+Add this repo as a submodule:
+(I suggest you instead add your fork of the repo)
+git submodule add https://github.com/MatevzVidovic/python_logger.git
+git commit -m "Add python_logger as a submodule"
+
+When cloning your repo, use:
+git clone --recurse-submodules [URL]
+This will mean the submodule (python_logger) is cloned as well.
+
+When pulling, use:
+git pull --recurse-submodules
+
+To view the latest log_file that has been created do:
+cd python_logger
+python3 server.py
+Make new terminal tab
+cd python_logger/log_frontend
+npm run dev
+And open the localhost that is shown in the terminal in your browser.
+
+You might need to pip3 install flask and flask_cors.
+For the frontend, you might need to install node and npm.
+Then you might need to install vite (npm install vite --save-dev).
+And then your node version might be too old or something, so you need to update nvm or sth,
+idk, I just coppied what chatGPT gave when I gave it the error message and it worked.
+
+Sometimes you need to ctrl+C server.py and then run it again.
+If logs aren't working, this is the first thing to try.
+
+
+I suggest you fork the python_logger repo and then add your fork as a submodule instead.
+This will allow you to change the python_logger code (like the global variables or some small additions).
+It's important you fork so that you can then push and your main repo remembers that you are using the new commit.
+
+If you go change the submodule code:
+When doing git add . in your main repo, the code changes in your submodule are never included.
+All that your main repo has, is a file that says which commit of the submodule is the right one.
+If you want to push the changes of the code in the submodule, you go to the submodule folder in the terminal,
+and then commit and push from there. This will commit to the python_logger repo.
+And then the main repo changes the file that tracks which submodule commit is the right one.
+That file change needs to be commited like any other.
+
+
+
+"""
+
+
+
 
 
 
@@ -1013,6 +1070,12 @@ DEFAULT_LOGGER = logging.getLogger(__name__)
 DEFAULT_LOGGER.setLevel(logging.DEBUG)
 
 
+LOG_TYPE = "py" # or react. Based on which visualizer you want to use after. 
+
+JOIN_STR = ", \n"
+if LOG_TYPE == "py":
+    JOIN_STR = ",\n"
+
 LOG_TIME_AUTOLOG = True # Here it makes the most sense. 
 # The duration information tells us the most in autolog.
 # Also, autologs don't have line information, important value information, ... So in autolog it's okay to clutter with time.
@@ -1158,6 +1221,48 @@ def limitations_setup(max_chars_in_one_var=MAX_CHARS_IN_ONE_VAR, max_file_size_b
 
 
 
+from pathlib import Path
+
+def get_fresh_log_name(path_to_parent_folder, name):
+    """
+    Get path like:
+    /path/to/parent/folder/name_999
+
+    name_999 is the full prefix of the final file.
+
+    We will then create e.g.:
+    /path/to/parent/folder/name_999_sthsth.txt
+
+    We check that the full prefix is unique in the folder.
+    This ensures an alphabetical ordering of the files, so that the latest file is always the top one in the folder.
+    """
+    
+
+    prefix = "" # will be k*"0" if overflow
+    counter=999
+    folder_path = Path(path_to_parent_folder)
+    
+    
+    mark = f"_{prefix}{counter}"
+    full_prefix = f"{name}{mark}"
+    file_path = folder_path / f"{full_prefix}"
+    while any(name.startswith(full_prefix) for name in os.listdir(folder_path)):
+        counter -= 1
+
+        mark = f"_{prefix}{counter}"
+        full_prefix = f"{name}{mark}"
+        file_path = folder_path / f"{full_prefix}"
+        
+        if counter <= 111:
+            prefix += "0"
+            counter = 999
+
+    # os.makedirs(file_path, exist_ok=True) # not appropriate here, because a dir like:   
+    # /logs/log_999/ gets created, and this is wrong
+    return Path(file_path)
+
+
+
 
 # A global variable is shared across all files that import it.
 # So when one file sets up logging, others won't set it up again.
@@ -1178,7 +1283,8 @@ def file_handler_setup(logger, add_stdout_stream: bool = False, print_log_file_n
 
     # Create a file handler
     current_time = datetime.datetime.now()
-    log_file_name = f"""log_{current_time.strftime('%d_%H-%M-%S_%m-%Y')}.log"""
+    log_path = str(get_fresh_log_name(logs_folder, "log").name)
+    log_file_name = log_path + f"""_{current_time.strftime('%H-%M-%S_#_%d_%m-%Y')}.py"""
 
     # Great idea, but there are some errors. Probably because more processes are trying to write to the same file. But I have no idea and will not try further.
     # handlers = py_log_always_on.file_handler_setup(MY_LOGGER, python_logger_path, rotation_megabytes=1024)
@@ -1213,6 +1319,8 @@ def file_handler_setup(logger, add_stdout_stream: bool = False, print_log_file_n
 
     # Create a formatter and set it for the file handler
     formatter = logging.Formatter('@log %(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    if LOG_TYPE == "py":
+        formatter = logging.Formatter('# @log %(asctime)s - %(name)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(formatter)
 
     # Add the file handler to the logger
@@ -1235,14 +1343,29 @@ def file_handler_setup(logger, add_stdout_stream: bool = False, print_log_file_n
 
 
 
-def mark_list_of_strings(list_of_strings, start_marker, end_marker=None):
+
+def mark_list_of_strings(list_of_strings):
+    global LOG_TYPE
+    if LOG_TYPE == "react":
+        start_marker="[START_VAR]"
+        end_marker="[END_VAR]"
+    elif LOG_TYPE == "py":
+        start_marker = "r\"\"\""
+        end_marker = "\"\"\""
+    else:
+        raise ValueError(f"Unknown LOG_TYPE: {LOG_TYPE}. Must be 'react' or 'py'.")
+    
+    return mark_list_of_strings_basic(list_of_strings, start_marker, end_marker)
+
+
+def mark_list_of_strings_basic(list_of_strings, start_marker, end_marker=None):
     if end_marker is None:
         end_marker = start_marker
     
     marked_list = []
     for s in list_of_strings:
         curr_s = s[:MAX_CHARS_IN_ONE_VAR]
-        marked_list.append(start_marker + s + end_marker)
+        marked_list.append(start_marker + curr_s + end_marker)
 
     return marked_list
 
@@ -1505,6 +1628,35 @@ def _get_list_of_reprs_from_dict_like_kwargs(kwargs_like_dict, check_attributes=
     return local_vars_strs
 
 
+
+def info_dict_to_id_str(frame_info_dict):
+    filename = frame_info_dict["filename"]
+    line_number = frame_info_dict["line_number"]
+    function_name = frame_info_dict["function_name"]
+    return f"{function_name}___line_{line_number}___file_{filename.replace('.','_')}"
+
+def format_log(log_str, frame_info_dict=None):
+    """
+    We overload frame_info_dict to be a string, 
+    so that we can use it as the function name where we dont already have the frame_info_dict.
+    """
+    global LOG_TYPE
+    if LOG_TYPE == "py":
+        lines = log_str.split("\n")
+        formatted_lines = [f"    {line}" for line in lines if line.strip()]
+        if frame_info_dict is None:
+            formatted_lines.insert(0, "\ndef unknown():")
+        elif isinstance(frame_info_dict, str):
+            # If frame_info_dict is a string, we assume it is the function name.
+            id_str = frame_info_dict
+            formatted_lines.insert(0, f"\ndef {id_str}():")
+        else:
+            id_str = info_dict_to_id_str(frame_info_dict)
+            formatted_lines.insert(0, f"\ndef {id_str}():")
+        return "\n".join(formatted_lines)
+    else:
+        return log_str
+
 def info_dict_to_string(info_dict, have_local_vars=True, check_attributes=True, attr_sets=["size"], added_attribute_names=[]):
 
     filename = info_dict["filename"]
@@ -1515,16 +1667,26 @@ def info_dict_to_string(info_dict, have_local_vars=True, check_attributes=True, 
     logging_string = f"""Filename: {filename}
                     Function {function_name} 
                       Line: {line_number}\n"""
+    if LOG_TYPE == "py":
+        logging_string = f"""'Filename: {filename}'
+'Function {function_name}' 
+'Line: {line_number}'\n"""
 
     if have_local_vars:
-        logging_string += "Local variables: "
+        if LOG_TYPE == "py":
+            logging_string += "'Local variables: '\n"
+        else:
+            logging_string += "Local variables: "
 
         local_vars_strs = _get_list_of_reprs_from_dict_like_kwargs(local_vars, check_attributes=check_attributes, attr_sets=attr_sets, added_attribute_names=added_attribute_names)
         
         # local_vars_strs = [f"{k}={v!r}" for k, v in local_vars.items()]
 
-        marked = mark_list_of_strings(local_vars_strs, start_marker="[START_VAR]", end_marker="[END_VAR]")
-        logging_string += " \n " + ", \n".join(marked)
+        marked = mark_list_of_strings(local_vars_strs)
+        if LOG_TYPE == "py":
+            logging_string += "\n" + JOIN_STR.join(marked)
+        else:
+            logging_string += " \n " + JOIN_STR.join(marked)
 
     return logging_string
 
@@ -1538,6 +1700,8 @@ def log_locals(passed_logger=DEFAULT_LOGGER, list_with_limiting_number=[], check
     :param logger: The logger to use (defaults to DEFAULT_LOGGER)
     """
     logging_string = " @log_locals \n"
+    if LOG_TYPE == "py":
+        logging_string = "' @log_locals '\n"
 
     
 
@@ -1557,7 +1721,7 @@ def log_locals(passed_logger=DEFAULT_LOGGER, list_with_limiting_number=[], check
 
 
     logging_string += info_string
-    passed_logger.debug(logging_string)
+    passed_logger.debug(format_log(logging_string, frame_info_dict=frame_info))
 
 
 
@@ -1570,6 +1734,8 @@ def log_stack(passed_logger=DEFAULT_LOGGER, check_attributes=True, attr_sets=["s
     """
 
     logging_string = " @log_stack \n"
+    if LOG_TYPE == "py":
+        logging_string = "' @log_stack '\n"
 
     all_info_dicts = []
 
@@ -1587,7 +1753,8 @@ def log_stack(passed_logger=DEFAULT_LOGGER, check_attributes=True, attr_sets=["s
 
 
     # Log each local variable
-    passed_logger.debug(logging_string)
+    # all_info_dicts[2] because the first two frames are the log_stack fn and another pylog fn
+    passed_logger.debug(format_log(logging_string, frame_info_dict=all_info_dicts[2]))
 
 
     return all_info_dicts
@@ -1610,6 +1777,8 @@ def log_manual(passed_logger=DEFAULT_LOGGER, *args, **kwargs):
 
 
     logging_string = " @log_manual \n"
+    if LOG_TYPE == "py":
+        logging_string = "' @log_manual '\n"
 
     
 
@@ -1632,11 +1801,11 @@ def log_manual(passed_logger=DEFAULT_LOGGER, *args, **kwargs):
     kwargs_strs = _get_list_of_reprs_from_dict_like_kwargs(kwargs, check_attributes=check_attributes, attr_sets=attr_sets, added_attribute_names=added_attribute_names)
 
     all_args = args_strs + kwargs_strs
-    marked = mark_list_of_strings(all_args, start_marker="[START_VAR]", end_marker="[END_VAR]")
+    marked = mark_list_of_strings(all_args)
     
-    logging_string += " \n " + ", \n".join(marked)
+    logging_string += " \n " + JOIN_STR.join(marked)
 
-    passed_logger.debug(logging_string)
+    passed_logger.debug(format_log(logging_string, frame_info_dict=frame_info))
 
 
 
@@ -1653,6 +1822,8 @@ def log_time(passed_logger=DEFAULT_LOGGER, immutable_id=""):
     global IMMUTABLE_2_TIMES
     
     logging_string = " @log_time \n"
+    if LOG_TYPE == "py":
+        logging_string = "' @log_time '\n"
 
     if immutable_id in IMMUTABLE_2_TIMES:
         since_last_call = curr_time - IMMUTABLE_2_TIMES[immutable_id]
@@ -1675,7 +1846,7 @@ def log_time(passed_logger=DEFAULT_LOGGER, immutable_id=""):
     logging_string += info_string
 
 
-    passed_logger.debug(logging_string)
+    passed_logger.debug(format_log(logging_string, frame_info_dict=frame_info))
 
     last_time = CURR_TIME_FUNC()
     LAST_LOG_TIME = last_time
@@ -1849,15 +2020,22 @@ def autolog(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None
                     args_dict[key] = arg
                     
                 printable_args = _get_list_of_reprs_from_dict_like_kwargs(args_dict, check_attributes=check_attributes, attr_sets=attr_sets, added_attribute_names=added_attribute_names, func_name=func_name)
-                marked_printable_args = mark_list_of_strings(printable_args, start_marker="[START_VAR]", end_marker="[END_VAR]")
+                marked_printable_args = mark_list_of_strings(printable_args)
                 
                 logging_string = " @autolog \n"
                 logging_string += f" Function {func_name} \n"
                 logging_string += f"Call id: {function_call_id} \n"
                 args_string = "Called with arguments: "
-                args_string += " \n " + ", \n".join(marked_printable_args)
+                args_string += " \n " + JOIN_STR.join(marked_printable_args)
+                if LOG_TYPE == "py":
+                    logging_string = "' @autolog '\n"
+                    logging_string += f"' Function {func_name} '\n"
+                    logging_string += f"'Call id: {function_call_id} '\n"
+                    args_string = "'Called with arguments: '"
+                    args_string += "\n" + JOIN_STR.join(marked_printable_args)
+
                 logging_string += args_string
-                logger.debug(logging_string)
+                logger.debug(format_log(logging_string, frame_info_dict=func_name))
                 
 
 
@@ -1904,7 +2082,13 @@ def autolog(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None
                         logging_string += f"Call id: {function_call_id} \n"
                         logging_string += f"Function duration: {func_duration:.8f} s\n"
                         logging_string += f"Returned: {result!r} \n"
-                        logger.debug(logging_string)
+                        if LOG_TYPE == "py":
+                            logging_string = "' @time_autolog '\n"
+                            logging_string += f"'Function {func_name} '\n"
+                            logging_string += f"'Call id: {function_call_id} '\n"
+                            logging_string += f"'Function duration: {func_duration:.8f} s'\n"
+                            logging_string += f'"""Returned: {result!r}"""\n'
+                        logger.debug(format_log(logging_string, func_name))
 
                 except Exception as e:
                         if let_logger_crash_program:

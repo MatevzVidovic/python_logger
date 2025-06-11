@@ -45,9 +45,16 @@ And most importantly:
 """
 SETUP:
 
-Clone this repo in a separate folder.
-Then just copy the python_logger folder into your main repo.
 We used to recommend subomdule use, but have found it to not be worth the hassle.
+Symrepo setup:
+- Have your main repo in a wrapper folder (repo_wrapper/main_repo).
+- Clone (a fork of) this repo into the same folder (repo_wrapper/python_logger).
+- In your main repo, add a symlink to the python_logger folder:
+ln -s ../python_logger python_logger
+Now your code easily accesses the python_logger code, 
+git doesn't traverse symlinks so any changes to python_logger don't get recorded,
+and you can just cd into python _logger to commit the changes.
+It's very much like git submodule use, but no tracking of latest commit, which caused us problems.
 
 
 
@@ -55,8 +62,8 @@ VIEWING LOGS:
 
 We used to have you run a Flask server which parsed the logs, and passed them to a Vite React frontend server.
 This gave you some nice visuals, but CORS often didn't work, and the setup caused some pain.
-Now we strongly recommend: LOG_TYPE = "py" (as is set by default)
-And viewing the logs using viewer.py, as described here:
+Now we strongly recommend: LOG_TYPE = "py" (as is set by default below),
+and viewing the logs using viewer.py, as described here:
 
 Open a new terminal tab.
 run:
@@ -66,6 +73,8 @@ This will create 000temp_out.py in the logs folder.
 Open this in vscode.
 
 - use of log regex is well explained in the console printout.
+
+- ommiting path to log will use the latest log file in the logs folder.
 
 - make a note of conditions you want to filter by,
 and paste it to the terminal. This gives you easy reproducability
@@ -346,6 +355,24 @@ In an individual call of .autolog() you can disable the time logging by setting 
 
 ENABLING OF LAZINESS:
 
+setup_scripts/set_basic.py:
+
+From the root of yor main_repo project, do:
+python3 -m python_logger.setup_scripts.set_basics {path_to_file_from_root}
+
+This will add autolog to all fns, 
+put all fn bodies into a try catch block, where we do log_stack in catch,
+and add a log_locals before every return.
+
+Add --rem to remove all autolog and log_locals (log_stack is not removed):
+python3 -m python_logger.setup_scripts.set_basics {path_to_file_from_root} --rem
+
+Your {path_to_file_from_root} can be a path to a dir.
+All .py files in that dir-tree will be modified.
+
+
+VScode:
+
 If you are lazy and don't care about clutter of logs, you can do a find and replace
 to add the loggings to all your functions.
 (This regex will still duplicate the loggings, so add them one by one in teh find and replace.)
@@ -365,53 +392,6 @@ Replace: $1log_locals(passed_logger=MY_LOGGER)\n$1return
 
 
 
-
-USING LOG VIEWER REGEX:
-
-You can use the regex bar to filter the logs.
-Example usage: You write " @autolog " in the input field.
-The button beside the field says contain.
-You click Add Regex.
-You then click Send Current Regex.
-Then you click on Refresh Logs.
-
-The new logs should be only the ones, which contain " @autolog " somewhere in their text.
-
-You could also have toggled the contain button to not-contain.
-Then the logs that remained in the view would be only those that 
-do not contain " @autolog " anywhere in their text.
-
-You can use more than one regex contain/not-contain at a time.
-All the conditions must hold for a log to be kept in view.
-
-And you can use actual regex in the input field, not just basic words, 
-although mostly you just use basic words to filter to what you are interested in.
-
-
-
-
-USING SERVER_PY:
-
-If you just do:
-python3 server.py
-You can view the latest log file that was created.
-You can also manually pass the name of the logfile in /logs/ to view that log file.
-
-You can do:
-python3 server.py log_57-44-22_2024-11-15.log
-or
-python3 server.py logs/log_57-44-22_2024-11-15.log
-
-I suggest the second way, so that you can use autocomplete.
-
-If you are choosing the logs manually, I suggest that when it seems appropriate,
-you delete the folder /logs.
-This is perfectly fine, it will be created anew.
-And you will have less clutter and will be able to find the log you are interested in more easily.
-
-Tip - run:
-python3 server.py logs/log_
-It won't work, but then you can just arrow-up, and add the number and tab.
 
 
 """
@@ -529,7 +509,7 @@ MY_LOGGER.setLevel(logging.DEBUG)
 
 
 
-LOG_FOR_CLASS:
+LOG_FOR_CLASS (I dislike this so it is not battle-tested):
 
 You can also put
 @py_log.log_for_class(passed_logger=MY_LOGGER)
@@ -733,7 +713,7 @@ def show_image(passed_img, title="", close_all_limit=1e9):
 
 
 
-
+(React use)
 LOG FRONTEND SUGGESTION WHEN FIXING BUGS:
 
 Do crtl F on the browser viewer.
@@ -841,7 +821,56 @@ That file change needs to be commited like any other.
 
 """
 
+# React and server.py:
+"""
 
+USING LOG VIEWER REGEX:
+
+You can use the regex bar to filter the logs.
+Example usage: You write " @autolog " in the input field.
+The button beside the field says contain.
+You click Add Regex.
+You then click Send Current Regex.
+Then you click on Refresh Logs.
+
+The new logs should be only the ones, which contain " @autolog " somewhere in their text.
+
+You could also have toggled the contain button to not-contain.
+Then the logs that remained in the view would be only those that 
+do not contain " @autolog " anywhere in their text.
+
+You can use more than one regex contain/not-contain at a time.
+All the conditions must hold for a log to be kept in view.
+
+And you can use actual regex in the input field, not just basic words, 
+although mostly you just use basic words to filter to what you are interested in.
+
+
+
+
+USING SERVER_PY:
+
+If you just do:
+python3 server.py
+You can view the latest log file that was created.
+You can also manually pass the name of the logfile in /logs/ to view that log file.
+
+You can do:
+python3 server.py log_57-44-22_2024-11-15.log
+or
+python3 server.py logs/log_57-44-22_2024-11-15.log
+
+I suggest the second way, so that you can use autocomplete.
+
+If you are choosing the logs manually, I suggest that when it seems appropriate,
+you delete the folder /logs.
+This is perfectly fine, it will be created anew.
+And you will have less clutter and will be able to find the log you are interested in more easily.
+
+Tip - run:
+python3 server.py logs/log_
+It won't work, but then you can just arrow-up, and add the number and tab.
+"""
 
 
 
@@ -1803,7 +1832,10 @@ def log_manual(passed_logger=DEFAULT_LOGGER, *args, **kwargs):
     all_args = args_strs + kwargs_strs
     marked = mark_list_of_strings(all_args)
     
-    logging_string += " \n " + JOIN_STR.join(marked)
+    if LOG_TYPE == "py":
+        logging_string += "\n" + JOIN_STR.join(marked)
+    else:
+        logging_string += " \n " + JOIN_STR.join(marked)
 
     passed_logger.debug(format_log(logging_string, frame_info_dict=frame_info))
 

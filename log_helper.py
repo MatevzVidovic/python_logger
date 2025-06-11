@@ -1803,7 +1803,10 @@ def log_manual(passed_logger=DEFAULT_LOGGER, *args, **kwargs):
     all_args = args_strs + kwargs_strs
     marked = mark_list_of_strings(all_args)
     
-    logging_string += " \n " + JOIN_STR.join(marked)
+    if LOG_TYPE == "py":
+        logging_string += "\n" + JOIN_STR.join(marked)
+    else:
+        logging_string += " \n " + JOIN_STR.join(marked)
 
     passed_logger.debug(format_log(logging_string, frame_info_dict=frame_info))
 

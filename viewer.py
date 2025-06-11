@@ -48,13 +48,25 @@ def clear():
 # take path to log arg
 def main():
     parser = argparse.ArgumentParser(description='Log File Viewer')
-    parser.add_argument('log_path', type=Path, help='Path to the log file to view')
+    parser.add_argument('log_path',  nargs='?', default=None, help='Path to the log file to view')
     args = parser.parse_args()
+
+
 
 
     # get path to this file
     code_file_path = Path(__file__).parent.resolve()
-    log_path = code_file_path / Path(args.log_path)
+
+    relative_log_path = args.log_path
+    if relative_log_path is None:
+        latest_log_name_path = code_file_path / "logs" / "latest_log_name.txt"
+        with open(latest_log_name_path, 'r') as f:
+            log_name = f.read().strip()
+            relative_log_path = Path("logs") / log_name
+    log_path = code_file_path / Path(relative_log_path)
+
+
+
 
     if not log_path.exists():
         print(f"Error: The log file '{log_path}' does not exist.")

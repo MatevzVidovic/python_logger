@@ -1101,9 +1101,18 @@ DEFAULT_LOGGER.setLevel(logging.DEBUG)
 
 LOG_TYPE = "py" # or react. Based on which visualizer you want to use after. 
 
-JOIN_STR = ", \n"
 if LOG_TYPE == "py":
+    START_STR = "\n"
     JOIN_STR = ",\n"
+    def log_type_delim(string):
+        return f"{"'"}{string}{"'"}"
+elif LOG_TYPE == "react":
+    START_STR = " \n "
+    JOIN_STR = ", \n"
+    def log_type_delim(string):
+        return string
+else:
+    raise ValueError(f"Unknown LOG_TYPE: {LOG_TYPE}. Must be 'react' or 'py'.")
 
 LOG_TIME_AUTOLOG = True # Here it makes the most sense. 
 # The duration information tells us the most in autolog.
@@ -1192,7 +1201,7 @@ class CustomFileHandler(logging.FileHandler):
         
         
 
-        # If this was the first file, we want iit to be a special backup, so that we never lose it.
+        # If this was the first file, we want it to be a special backup, so that we never lose it.
         # And if this is the first file, the above for loop didn't do anything anyway.
         if self.is_first_file:
             dfn = self.baseFilename + ".first_backup"
@@ -1229,7 +1238,7 @@ def limitations_setup(max_chars_in_one_var=MAX_CHARS_IN_ONE_VAR, max_file_size_b
 
     # always_have_first_backup is True by default.
 
-    # var_blacklist is a list of variable names that will not be logged. This is useful to prevent annoying long logs that keep being logged but aren0t useful at all.
+    # var_blacklist is a list of variable names that will not be logged. This is useful to prevent annoying long logs that keep being logged but aren't useful at all.
 
     global MAX_CHARS_IN_ONE_VAR
     global MAX_FILE_SIZE_BYTES
@@ -1347,9 +1356,12 @@ def file_handler_setup(logger, add_stdout_stream: bool = False, print_log_file_n
         f.write(log_file_name)
 
     # Create a formatter and set it for the file handler
-    formatter = logging.Formatter('@log %(asctime)s - %(name)s - %(levelname)s - %(message)s')
     if LOG_TYPE == "py":
         formatter = logging.Formatter('# @log %(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    elif LOG_TYPE == "react":
+        formatter = logging.Formatter('@log %(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    else:
+        raise ValueError(f"Unknown LOG_TYPE: {LOG_TYPE}. Must be 'react' or 'py'.")
     file_handler.setFormatter(formatter)
 
     # Add the file handler to the logger
@@ -1375,12 +1387,12 @@ def file_handler_setup(logger, add_stdout_stream: bool = False, print_log_file_n
 
 def mark_list_of_strings(list_of_strings):
     global LOG_TYPE
-    if LOG_TYPE == "react":
-        start_marker="[START_VAR]"
-        end_marker="[END_VAR]"
-    elif LOG_TYPE == "py":
+    if LOG_TYPE == "py":
         start_marker = "r\"\"\""
         end_marker = "\"\"\""
+    elif LOG_TYPE == "react":
+        start_marker="[START_VAR]"
+        end_marker="[END_VAR]"
     else:
         raise ValueError(f"Unknown LOG_TYPE: {LOG_TYPE}. Must be 'react' or 'py'.")
     
@@ -1693,30 +1705,29 @@ def info_dict_to_string(info_dict, have_local_vars=True, check_attributes=True, 
     function_name = info_dict["function_name"]
     local_vars = info_dict["local_vars"]
     
-    logging_string = f"""Filename: {filename}
-                    Function {function_name} 
-                      Line: {line_number}\n"""
+
     if LOG_TYPE == "py":
         logging_string = f"""'Filename: {filename}'
 'Function {function_name}' 
 'Line: {line_number}'\n"""
+    elif LOG_TYPE == "react":
+        logging_string = f"""Filename: {filename}
+                        Function {function_name} 
+                        Line: {line_number}\n"""
+    else:
+        raise ValueError(f"Unknown LOG_TYPE: {LOG_TYPE}. Must be 'react' or 'py'.")
 
     if have_local_vars:
-        if LOG_TYPE == "py":
-            logging_string += "'Local variables: '\n"
-        else:
-            logging_string += "Local variables: "
+        
+        logging_string += log_type_delim(" Local variables: ") + "\n"
 
         local_vars_strs = _get_list_of_reprs_from_dict_like_kwargs(local_vars, check_attributes=check_attributes, attr_sets=attr_sets, added_attribute_names=added_attribute_names)
         
         # local_vars_strs = [f"{k}={v!r}" for k, v in local_vars.items()]
 
         marked = mark_list_of_strings(local_vars_strs)
-        if LOG_TYPE == "py":
-            logging_string += "\n" + JOIN_STR.join(marked)
-        else:
-            logging_string += " \n " + JOIN_STR.join(marked)
-
+        logging_string += START_STR + JOIN_STR.join(marked)
+        
     return logging_string
 
 
@@ -1728,11 +1739,8 @@ def log_locals(passed_logger=DEFAULT_LOGGER, list_with_limiting_number=[], check
     
     :param logger: The logger to use (defaults to DEFAULT_LOGGER)
     """
-    logging_string = " @log_locals \n"
-    if LOG_TYPE == "py":
-        logging_string = "' @log_locals '\n"
 
-    
+    logging_string = log_type_delim(" @log_locals ") + "\n"
 
     if len(list_with_limiting_number) == 1: 
         if list_with_limiting_number[0] <= 0:
@@ -1762,9 +1770,8 @@ def log_stack(passed_logger=DEFAULT_LOGGER, check_attributes=True, attr_sets=["s
     Log the stack trace.
     """
 
-    logging_string = " @log_stack \n"
-    if LOG_TYPE == "py":
-        logging_string = "' @log_stack '\n"
+
+    logging_string = log_type_delim(" @log_stack ") + "\n"
 
     all_info_dicts = []
 
@@ -1805,10 +1812,7 @@ def log_manual(passed_logger=DEFAULT_LOGGER, *args, **kwargs):
 
 
 
-    logging_string = " @log_manual \n"
-    if LOG_TYPE == "py":
-        logging_string = "' @log_manual '\n"
-
+    logging_string = log_type_delim(" @log_manual ") + "\n"
     
 
     
@@ -1832,11 +1836,8 @@ def log_manual(passed_logger=DEFAULT_LOGGER, *args, **kwargs):
     all_args = args_strs + kwargs_strs
     marked = mark_list_of_strings(all_args)
     
-    if LOG_TYPE == "py":
-        logging_string += "\n" + JOIN_STR.join(marked)
-    else:
-        logging_string += " \n " + JOIN_STR.join(marked)
-
+    logging_string += START_STR + JOIN_STR.join(marked)
+    
     passed_logger.debug(format_log(logging_string, frame_info_dict=frame_info))
 
 
@@ -1853,9 +1854,7 @@ def log_time(passed_logger=DEFAULT_LOGGER, immutable_id=""):
     global LAST_LOG_TIME
     global IMMUTABLE_2_TIMES
     
-    logging_string = " @log_time \n"
-    if LOG_TYPE == "py":
-        logging_string = "' @log_time '\n"
+    logging_string = log_type_delim(" @log_time ") + "\n"
 
     if immutable_id in IMMUTABLE_2_TIMES:
         since_last_call = curr_time - IMMUTABLE_2_TIMES[immutable_id]
@@ -2054,17 +2053,12 @@ def autolog(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None
                 printable_args = _get_list_of_reprs_from_dict_like_kwargs(args_dict, check_attributes=check_attributes, attr_sets=attr_sets, added_attribute_names=added_attribute_names, func_name=func_name)
                 marked_printable_args = mark_list_of_strings(printable_args)
                 
-                logging_string = " @autolog \n"
-                logging_string += f" Function {func_name} \n"
-                logging_string += f"Call id: {function_call_id} \n"
-                args_string = "Called with arguments: "
-                args_string += " \n " + JOIN_STR.join(marked_printable_args)
-                if LOG_TYPE == "py":
-                    logging_string = "' @autolog '\n"
-                    logging_string += f"' Function {func_name} '\n"
-                    logging_string += f"'Call id: {function_call_id} '\n"
-                    args_string = "'Called with arguments: '"
-                    args_string += "\n" + JOIN_STR.join(marked_printable_args)
+
+                logging_string = log_type_delim(" @autolog ") + "\n"
+                logging_string += log_type_delim(f" Function {func_name} ") + "\n"
+                logging_string += log_type_delim(f"Call id: {function_call_id} ") + "\n"
+                args_string = log_type_delim("Called with arguments: ")
+                args_string += START_STR + JOIN_STR.join(marked_printable_args)
 
                 logging_string += args_string
                 logger.debug(format_log(logging_string, frame_info_dict=func_name))
@@ -2109,17 +2103,12 @@ def autolog(_func=None, *, passed_logger: Union[MyLogger, logging.Logger] = None
                     
                     if LOG_TIME_AUTOLOG and time_log:
 
-                        logging_string = " @time_autolog \n"
-                        logging_string += f"Function {func_name} \n"
-                        logging_string += f"Call id: {function_call_id} \n"
-                        logging_string += f"Function duration: {func_duration:.8f} s\n"
-                        logging_string += f"Returned: {result!r} \n"
-                        if LOG_TYPE == "py":
-                            logging_string = "' @time_autolog '\n"
-                            logging_string += f"'Function {func_name} '\n"
-                            logging_string += f"'Call id: {function_call_id} '\n"
-                            logging_string += f"'Function duration: {func_duration:.8f} s'\n"
-                            logging_string += f'"""Returned: {result!r}"""\n'
+                        logging_string = log_type_delim(" @time_autolog ") + "\n"
+                        logging_string += log_type_delim(f"Function {func_name} ") + "\n"
+                        logging_string += log_type_delim(f"Call id: {function_call_id} ") + "\n"
+                        logging_string += log_type_delim(f"Function duration: {func_duration:.8f} s") + "\n"
+                        logging_string += log_type_delim(f"Returned: {result!r} ") + "\n"
+                        
                         logger.debug(format_log(logging_string, func_name))
 
                 except Exception as e:

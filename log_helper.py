@@ -1276,7 +1276,7 @@ def get_fresh_log_name(path_to_parent_folder, name):
     """
     
 
-    prefix = "" # will be k*"0" if overflow
+    prefix = "" # will be k*"#" if overflow
     counter=999
     folder_path = Path(path_to_parent_folder)
     
@@ -1291,8 +1291,8 @@ def get_fresh_log_name(path_to_parent_folder, name):
         full_prefix = f"{name}{mark}"
         file_path = folder_path / f"{full_prefix}"
         
-        if counter <= 111:
-            prefix += "0"
+        if counter <= 100:
+            prefix += "#"
             counter = 999
 
     # os.makedirs(file_path, exist_ok=True) # not appropriate here, because a dir like:   

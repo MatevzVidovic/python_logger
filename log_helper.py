@@ -1105,7 +1105,8 @@ if LOG_TYPE == "py":
     START_STR = "\n"
     JOIN_STR = ",\n"
     def log_type_delim(string):
-        return f"{"'"}{string}{"'"}"
+        delim = '"""'
+        return f"{delim}{string}{delim}"
 elif LOG_TYPE == "react":
     START_STR = " \n "
     JOIN_STR = ", \n"
